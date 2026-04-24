@@ -28,7 +28,17 @@ func NewReportHandler(entryRepo *repository.EntryRepository) *ReportHandler {
 
 // ReportsPage renders the reports page
 func (h *ReportHandler) ReportsPage(w http.ResponseWriter, r *http.Request) {
-	pages.ReportsPage().Render(r.Context(), w)
+	startDate, endDate := defaultReportDateStrings(time.Now())
+	pages.ReportsPage(startDate, endDate).Render(r.Context(), w)
+}
+
+func defaultReportDateRange(now time.Time) (time.Time, time.Time) {
+	return now.AddDate(0, 0, -30), now
+}
+
+func defaultReportDateStrings(now time.Time) (string, string) {
+	start, end := defaultReportDateRange(now)
+	return start.Format("2006-01-02"), end.Format("2006-01-02")
 }
 
 // GetReport generates a report for the specified date range
@@ -37,6 +47,7 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 
 	startStr := r.URL.Query().Get("start")
 	endStr := r.URL.Query().Get("end")
+	defaultStart, defaultEnd := defaultReportDateRange(time.Now())
 
 	var start, end time.Time
 	var err error
@@ -48,8 +59,7 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Default to 30 days ago
-		start = time.Now().AddDate(0, 0, -30)
+		start = defaultStart
 	}
 
 	if endStr != "" {
@@ -61,7 +71,7 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 		// Include the full end day
 		end = end.Add(24*time.Hour - time.Second)
 	} else {
-		end = time.Now()
+		end = defaultEnd
 	}
 
 	// Get totals from database
@@ -139,6 +149,7 @@ func (h *ReportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 
 	startStr := r.URL.Query().Get("start")
 	endStr := r.URL.Query().Get("end")
+	defaultStart, defaultEnd := defaultReportDateRange(time.Now())
 
 	var start, end time.Time
 	var err error
@@ -150,7 +161,7 @@ func (h *ReportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		start = time.Now().AddDate(0, 0, -30)
+		start = defaultStart
 	}
 
 	if endStr != "" {
@@ -161,7 +172,7 @@ func (h *ReportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 		}
 		end = end.Add(24*time.Hour - time.Second)
 	} else {
-		end = time.Now()
+		end = defaultEnd
 	}
 
 	const pageSize = 1000
