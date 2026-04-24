@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25.9-alpine3.23 AS builder
 WORKDIR /src
 
 COPY go.mod go.sum ./
@@ -11,7 +11,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/learnd ./cmd/learnd
 
-FROM alpine:3.20
+FROM alpine:3.23.4
 ARG LOG_LEVEL=info
 WORKDIR /app
 
