@@ -24,9 +24,10 @@ type TagReport struct {
 
 // TypeReport represents aggregated data for a content type
 type TypeReport struct {
-	Type  string
-	Count int
-	Time  int // in minutes
+	Type      string
+	BadgeType string
+	Count     int
+	Time      int // in minutes
 }
 
 // ReportData contains all data needed to render the report results
@@ -152,7 +153,7 @@ templ ReportResults(data ReportData) {
 				for _, typ := range data.ByType {
 					<div class="p-4 flex items-center justify-between">
 						<div class="flex items-center gap-3">
-							<span class={ "badge", fmt.Sprintf("badge-%s", typ.Type) }>{ typ.Type }</span>
+							<span class={ "badge", fmt.Sprintf("badge-%s", typ.BadgeType) }>{ typ.Type }</span>
 						</div>
 						<div class="flex items-center gap-6 text-sm">
 							if typ.Time > 0 {
