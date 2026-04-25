@@ -10,3 +10,13 @@ type EntryView struct {
 	DuplicateCount int
 	SwapOOB        bool
 }
+
+// PaginationView describes a paginated dashboard state.
+type PaginationView struct {
+	CurrentPage int
+	TotalPages  int
+	HasPrevious bool
+	HasNext     bool
+	PreviousURL string
+	NextURL     string
+}
