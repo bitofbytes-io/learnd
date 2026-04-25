@@ -44,8 +44,18 @@ test: ## Run Go tests
 
 # Docker (production)
 docker-buildx: templ tail-prod ## Build and push multi-arch Docker image using buildx
+	$(eval REVISION ?= $(shell git rev-parse HEAD 2>/dev/null))
+	$(eval VERSION ?= $(TAG))
+	$(eval SOURCE_URL ?= https://github.com/drywaters/learnd)
 	docker buildx build \
 		--platform $(PLATFORMS) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg REVISION=$(REVISION) \
+		--label org.opencontainers.image.source=$(SOURCE_URL) \
+		--label org.opencontainers.image.revision=$(REVISION) \
+		--label org.opencontainers.image.version=$(VERSION) \
+		--label org.opencontainers.image.title=learnd \
+		--label org.opencontainers.image.description=Learnd web application \
 		--tag $(REGISTRY)/$(IMAGE_REPO):$(TAG) \
 		--tag $(REGISTRY)/$(IMAGE_REPO):latest \
 		--push \
