@@ -9,6 +9,7 @@ type EntryView struct {
 	model.Entry
 	DuplicateCount int
 	SwapOOB        bool
+	EditURL        string
 }
 
 // PaginationView describes a paginated dashboard state.

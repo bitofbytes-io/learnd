@@ -14,6 +14,7 @@ import (
 
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
+	"github.com/drywaters/learnd/internal/ui"
 	"github.com/drywaters/learnd/internal/ui/pages"
 	"github.com/drywaters/learnd/internal/ui/partials"
 	"github.com/drywaters/learnd/internal/urlutil"
@@ -227,7 +228,9 @@ func (h *EntryHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
-	pages.EditPage(entryView).Render(ctx, w)
+	returnTo := sanitizeReturnTo(r.URL.Query().Get("return_to"))
+	entryView.EditURL = entryEditURL(entry.ID.String(), returnTo)
+	pages.EditPage(entryView, returnTo).Render(ctx, w)
 }
 
 // Update updates an entry
@@ -288,6 +291,7 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
+	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
 
@@ -383,6 +387,7 @@ func (h *EntryHandler) RefreshEnrichment(w http.ResponseWriter, r *http.Request)
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
+	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
 
@@ -413,6 +418,7 @@ func (h *EntryHandler) RefreshSummary(w http.ResponseWriter, r *http.Request) {
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
+	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
 
@@ -435,6 +441,7 @@ func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
+	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
 
@@ -445,6 +452,61 @@ func captureRedirectAfterCreate(r *http.Request) string {
 		}
 	}
 	return ""
+}
+
+func entryEditURL(id, returnTo string) string {
+	path := fmt.Sprintf("/entries/%s/edit", id)
+	if returnTo == "" || returnTo == "/" {
+		return path
+	}
+	return path + "?return_to=" + url.QueryEscape(returnTo)
+}
+
+func sanitizeReturnTo(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "/"
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" {
+		return "/"
+	}
+
+	path := parsed.EscapedPath()
+	if path == "" {
+		path = parsed.Path
+	}
+	if path == "" {
+		path = "/"
+	}
+	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
+		return "/"
+	}
+	if parsed.RawQuery != "" {
+		return path + "?" + parsed.RawQuery
+	}
+	return path
+}
+
+func dashboardReturnTo(r *http.Request) string {
+	current := htmxCurrentPath(r)
+	if current == "" {
+		return ""
+	}
+	current = sanitizeReturnTo(current)
+	if current == "/" || strings.HasPrefix(current, "/?") {
+		return current
+	}
+	return ""
+}
+
+func stampDashboardEntryViewFromRequest(r *http.Request, entryView *ui.EntryView) {
+	returnTo := dashboardReturnTo(r)
+	if returnTo == "" {
+		return
+	}
+	stampDashboardEditURL(entryView, returnTo)
 }
 
 func htmxCurrentPath(r *http.Request) string {

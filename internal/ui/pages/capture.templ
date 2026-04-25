@@ -118,46 +118,75 @@ templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, prefillU
 					</form>
 				</div>
 
-				<!-- Entries Section -->
-				<div>
-					<div class="flex items-center justify-between mb-4 gap-4">
-						<h2 class="font-display text-lg font-medium" style="color: var(--color-ink);">
-							Recent Entries
-						</h2>
-						<div id="entry-count" class="flex items-center gap-3 text-xs" style="color: var(--color-ink-lighter);">
-							if pagination.HasPrevious {
-								<a href={ templ.SafeURL(pagination.PreviousURL) } class="text-xs hover:underline" style="color: var(--color-accent);">
-									Previous
-								</a>
-							} else {
-								<span class="text-xs opacity-50">Previous</span>
-							}
-							<span>Page { fmt.Sprintf("%d", pagination.CurrentPage) } of { fmt.Sprintf("%d", pagination.TotalPages) }</span>
-							if pagination.HasNext {
-								<a href={ templ.SafeURL(pagination.NextURL) } class="text-xs hover:underline" style="color: var(--color-accent);">
-									Next
-								</a>
-							} else {
-								<span class="text-xs opacity-50">Next</span>
-							}
-						</div>
-					</div>
-
-					<div class="card overflow-hidden">
-						<div id="entry-list" class="divide-y" style="border-color: var(--color-warm-gray);">
-							if len(entries) > 0 {
-								for _, entry := range entries {
-									@partials.EntryRow(entry)
-								}
-							}
-						</div>
-						@partials.EmptyState(len(entries) == 0, false)
-					</div>
-				</div>
+				@CaptureEntriesSection(entries, pagination)
 			</main>
 		</div>
 		@keyboardSubmitScript()
 	}
+}
+
+templ CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView) {
+	<div id="dashboard-entries-region">
+		<div class="flex items-center justify-between mb-4 gap-4">
+			<h2 class="font-display text-lg font-medium" style="color: var(--color-ink);">
+				Recent Entries
+			</h2>
+			@paginationControls(pagination)
+		</div>
+
+		<div class="card overflow-hidden">
+			<div id="entry-list" class="divide-y" style="border-color: var(--color-warm-gray);">
+				if len(entries) > 0 {
+					for _, entry := range entries {
+						@partials.EntryRow(entry)
+					}
+				}
+			</div>
+			@partials.EmptyState(len(entries) == 0, false)
+		</div>
+
+		<div class="mt-6 flex justify-end">
+			@paginationControls(pagination)
+		</div>
+	</div>
+}
+
+templ paginationControls(pagination ui.PaginationView) {
+	<div class="flex items-center gap-3 text-xs" style="color: var(--color-ink-lighter);">
+		if pagination.HasPrevious {
+			<a
+				href={ templ.SafeURL(pagination.PreviousURL) }
+				hx-get={ pagination.PreviousURL }
+				hx-target="#dashboard-entries-region"
+				hx-select="#dashboard-entries-region"
+				hx-swap="outerHTML show:none"
+				hx-push-url="true"
+				class="text-xs hover:underline"
+				style="color: var(--color-accent);"
+			>
+				Previous
+			</a>
+		} else {
+			<span class="text-xs opacity-50">Previous</span>
+		}
+		<span>Page { fmt.Sprintf("%d", pagination.CurrentPage) } of { fmt.Sprintf("%d", pagination.TotalPages) }</span>
+		if pagination.HasNext {
+			<a
+				href={ templ.SafeURL(pagination.NextURL) }
+				hx-get={ pagination.NextURL }
+				hx-target="#dashboard-entries-region"
+				hx-select="#dashboard-entries-region"
+				hx-swap="outerHTML show:none"
+				hx-push-url="true"
+				class="text-xs hover:underline"
+				style="color: var(--color-accent);"
+			>
+				Next
+			</a>
+		} else {
+			<span class="text-xs opacity-50">Next</span>
+		}
+	</div>
 }
 
 templ keyboardSubmitScript() {

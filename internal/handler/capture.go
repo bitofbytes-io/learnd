@@ -51,7 +51,15 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entryViews := buildEntryViews(ctx, h.entryRepo, entries)
+	stampDashboardEditURLs(entryViews, dashboardPagePath(page))
 	pagination := buildDashboardPagination(page, totalPages)
+
+	if isDashboardEntriesRequest(r) {
+		if err := pages.CaptureEntriesSection(entryViews, pagination).Render(ctx, w); err != nil {
+			slog.Error("failed to render dashboard entries section", "handler", "CapturePage", "error", err)
+		}
+		return
+	}
 
 	// Check for URL prefill from query param
 	prefillURL := r.URL.Query().Get("url")
@@ -99,10 +107,36 @@ func buildDashboardPagination(page, totalPages int) ui.PaginationView {
 		HasNext:     page < totalPages,
 	}
 	if pagination.HasPrevious {
-		pagination.PreviousURL = fmt.Sprintf("/?page=%d", page-1)
+		pagination.PreviousURL = dashboardPagePath(page - 1)
 	}
 	if pagination.HasNext {
-		pagination.NextURL = fmt.Sprintf("/?page=%d", page+1)
+		pagination.NextURL = dashboardPagePath(page + 1)
 	}
 	return pagination
+}
+
+func dashboardPagePath(page int) string {
+	if page <= 1 {
+		return "/"
+	}
+	return fmt.Sprintf("/?page=%d", page)
+}
+
+func stampDashboardEditURL(entry *ui.EntryView, returnTo string) {
+	if entry == nil {
+		return
+	}
+	entry.EditURL = entryEditURL(entry.ID.String(), returnTo)
+}
+
+func stampDashboardEditURLs(entries []ui.EntryView, returnTo string) {
+	for i := range entries {
+		stampDashboardEditURL(&entries[i], returnTo)
+	}
+}
+
+func isDashboardEntriesRequest(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true" &&
+		r.Header.Get("HX-Target") == "dashboard-entries-region" &&
+		r.Header.Get("HX-Boosted") != "true"
 }

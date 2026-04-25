@@ -526,6 +526,9 @@ func setupTestHandler(repo EntryRepo) *chi.Mux {
 	r := chi.NewRouter()
 	r.Get("/entries/{id}/edit", handler.EditPage)
 	r.Put("/entries/{id}", handler.Update)
+	r.Get("/entries/{id}/status", handler.Status)
+	r.Post("/entries/{id}/refresh-enrichment", handler.RefreshEnrichment)
+	r.Post("/entries/{id}/refresh-summary", handler.RefreshSummary)
 	return r
 }
 
@@ -533,13 +536,15 @@ func TestEditPage(t *testing.T) {
 	tests := []struct {
 		name           string
 		id             string
+		query          string
 		mockSetup      func(*mockEntryRepo)
 		expectedStatus int
 		expectedBody   string
 	}{
 		{
-			name: "valid entry returns 200",
-			id:   "550e8400-e29b-41d4-a716-446655440000",
+			name:  "valid entry returns 200",
+			id:    "550e8400-e29b-41d4-a716-446655440000",
+			query: "?return_to=%2F%3Fpage%3D2",
 			mockSetup: func(m *mockEntryRepo) {
 				id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 				m.getByIDFn = func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) {
@@ -598,7 +603,7 @@ func TestEditPage(t *testing.T) {
 			tt.mockSetup(mock)
 
 			router := setupTestHandler(mock)
-			path := "/entries/" + tt.id + "/edit"
+			path := "/entries/" + tt.id + "/edit" + tt.query
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			rec := httptest.NewRecorder()
 
@@ -609,6 +614,93 @@ func TestEditPage(t *testing.T) {
 			}
 			if tt.expectedBody != "" && !strings.Contains(rec.Body.String(), tt.expectedBody) {
 				t.Errorf("EditPage() body = %q, want to contain %q", rec.Body.String(), tt.expectedBody)
+			}
+			if tt.expectedStatus == http.StatusOK {
+				body := rec.Body.String()
+				if tt.query == "?return_to=%2F%3Fpage%3D2" {
+					for _, want := range []string{`href="/?page=2"`, `data-return-to="/?page=2"`, `evt.detail.elt === editForm && evt.detail.successful`} {
+						if !strings.Contains(body, want) {
+							t.Errorf("EditPage() body = %q, want to contain %q", body, want)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDashboardRowRerendersPreserveReturnTo(t *testing.T) {
+	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440010")
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		setup  func(*testing.T, *mockEntryRepo)
+	}{
+		{
+			name:   "status polling",
+			method: http.MethodGet,
+			path:   "/entries/" + id.String() + "/status",
+		},
+		{
+			name:   "refresh enrichment",
+			method: http.MethodPost,
+			path:   "/entries/" + id.String() + "/refresh-enrichment",
+			setup: func(t *testing.T, m *mockEntryRepo) {
+				m.resetEnrichmentFn = func(ctx context.Context, gotID uuid.UUID) error {
+					if gotID != id {
+						t.Fatalf("ResetEnrichment() id = %s, want %s", gotID, id)
+					}
+					return nil
+				}
+			},
+		},
+		{
+			name:   "refresh summary",
+			method: http.MethodPost,
+			path:   "/entries/" + id.String() + "/refresh-summary",
+			setup: func(t *testing.T, m *mockEntryRepo) {
+				m.resetSummaryFn = func(ctx context.Context, gotID uuid.UUID) error {
+					if gotID != id {
+						t.Fatalf("ResetSummary() id = %s, want %s", gotID, id)
+					}
+					return nil
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockEntryRepo{
+				getByIDFn: func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) {
+					if reqID != id {
+						t.Fatalf("GetByID() id = %s, want %s", reqID, id)
+					}
+					return createTestEntry(id), nil
+				},
+				countByNormalizedURLFn: func(ctx context.Context, normalizedURL string) (int, error) {
+					return 1, nil
+				},
+			}
+			if tt.setup != nil {
+				tt.setup(t, mock)
+			}
+
+			router := setupTestHandler(mock)
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			req.Header.Set("HX-Current-URL", "https://learnd.test/?page=2")
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s status = %d, want %d", tt.name, rec.Code, http.StatusOK)
+			}
+			want := "/entries/" + id.String() + "/edit?return_to=%2F%3Fpage%3D2"
+			if !strings.Contains(rec.Body.String(), want) {
+				t.Fatalf("%s body = %q, want to contain %q", tt.name, rec.Body.String(), want)
 			}
 		})
 	}
