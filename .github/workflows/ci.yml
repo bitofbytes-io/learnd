@@ -62,6 +62,9 @@ jobs:
           IMAGE_REPO: ${{ env.IMAGE_REPO }}
           PLATFORMS: ${{ env.PLATFORMS }}
           TAG: ${{ steps.meta.outputs.TAG }}
+          VERSION: ${{ steps.meta.outputs.TAG }}
+          REVISION: ${{ github.sha }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           set -euo pipefail
           : "${REGISTRY:?Missing vars.IMAGE_REG}"
