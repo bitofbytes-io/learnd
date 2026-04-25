@@ -29,14 +29,6 @@ func NewCaptureHandler(entryRepo EntryRepo) *CaptureHandler {
 func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	page := parseDashboardPage(r)
-	offset := (page - 1) * dashboardPageSize
-
-	entries, err := h.entryRepo.List(ctx, repository.ListOptions{Limit: dashboardPageSize, Offset: offset})
-	if err != nil {
-		slog.Error("failed to list entries", "handler", "CapturePage", "page", page, "offset", offset, "error", err)
-		http.Error(w, "Failed to load entries", http.StatusInternalServerError)
-		return
-	}
 
 	totalEntries, err := h.entryRepo.Count(ctx)
 	if err != nil {
@@ -45,19 +37,17 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalPages := 1
-	if totalEntries > 0 {
-		totalPages = (totalEntries + dashboardPageSize - 1) / dashboardPageSize
-	}
+	totalPages := totalDashboardPages(totalEntries)
 	if page > totalPages {
 		page = totalPages
-		offset = (page - 1) * dashboardPageSize
-		entries, err = h.entryRepo.List(ctx, repository.ListOptions{Limit: dashboardPageSize, Offset: offset})
-		if err != nil {
-			slog.Error("failed to list entries", "handler", "CapturePage", "page", page, "offset", offset, "error", err)
-			http.Error(w, "Failed to load entries", http.StatusInternalServerError)
-			return
-		}
+	}
+	offset := dashboardOffset(page)
+
+	entries, err := h.entryRepo.List(ctx, repository.ListOptions{Limit: dashboardPageSize, Offset: offset})
+	if err != nil {
+		slog.Error("failed to list entries", "handler", "CapturePage", "page", page, "offset", offset, "error", err)
+		http.Error(w, "Failed to load entries", http.StatusInternalServerError)
+		return
 	}
 
 	entryViews := buildEntryViews(ctx, h.entryRepo, entries)
@@ -80,6 +70,25 @@ func parseDashboardPage(r *http.Request) int {
 		}
 	}
 	return page
+}
+
+func totalDashboardPages(totalEntries int) int {
+	if totalEntries <= 0 {
+		return 1
+	}
+
+	totalPages := totalEntries / dashboardPageSize
+	if totalEntries%dashboardPageSize != 0 {
+		totalPages++
+	}
+	return totalPages
+}
+
+func dashboardOffset(page int) int {
+	if page <= 1 {
+		return 0
+	}
+	return (page - 1) * dashboardPageSize
 }
 
 func buildDashboardPagination(page, totalPages int) ui.PaginationView {
