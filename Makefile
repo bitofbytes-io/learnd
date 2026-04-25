@@ -55,7 +55,7 @@ docker-buildx: templ tail-prod ## Build and push multi-arch Docker image using b
 		--label org.opencontainers.image.revision=$(REVISION) \
 		--label org.opencontainers.image.version=$(VERSION) \
 		--label org.opencontainers.image.title=learnd \
-		--label org.opencontainers.image.description=Learnd web application \
+		--label "org.opencontainers.image.description=Learnd web application" \
 		--tag $(REGISTRY)/$(IMAGE_REPO):$(TAG) \
 		--tag $(REGISTRY)/$(IMAGE_REPO):latest \
 		--push \
