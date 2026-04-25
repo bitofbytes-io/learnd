@@ -148,7 +148,7 @@ func reportScript() templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<script>\n\t\t// Update export link when form changes\n\t\tdocument.getElementById('report-form').addEventListener('change', function() {\n\t\t\tconst formData = new FormData(this);\n\t\t\tconst params = new URLSearchParams(formData);\n\t\t\tdocument.getElementById('export-link').href = '/api/reports/export?' + params.toString();\n\t\t});\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<script>\n\t\tconst reportForm = document.getElementById('report-form');\n\t\tif (reportForm) {\n\t\t\treportForm.addEventListener('change', function(event) {\n\t\t\t\tconst formData = new FormData(this);\n\t\t\t\tconst params = new URLSearchParams(formData);\n\t\t\t\tdocument.getElementById('export-link').href = '/api/reports/export?' + params.toString();\n\n\t\t\t\tif (event.target instanceof HTMLInputElement && event.target.type === 'date') {\n\t\t\t\t\twindow.requestAnimationFrame(() => event.target.blur());\n\t\t\t\t}\n\t\t\t});\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

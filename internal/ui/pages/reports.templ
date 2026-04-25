@@ -86,11 +86,17 @@ templ ReportsPage(startDate, endDate string) {
 
 templ reportScript() {
 	<script>
-		// Update export link when form changes
-		document.getElementById('report-form').addEventListener('change', function() {
-			const formData = new FormData(this);
-			const params = new URLSearchParams(formData);
-			document.getElementById('export-link').href = '/api/reports/export?' + params.toString();
-		});
+		const reportForm = document.getElementById('report-form');
+		if (reportForm) {
+			reportForm.addEventListener('change', function(event) {
+				const formData = new FormData(this);
+				const params = new URLSearchParams(formData);
+				document.getElementById('export-link').href = '/api/reports/export?' + params.toString();
+
+				if (event.target instanceof HTMLInputElement && event.target.type === 'date') {
+					window.requestAnimationFrame(() => event.target.blur());
+				}
+			});
+		}
 	</script>
 }
