@@ -5,7 +5,7 @@ import (
 	"github.com/drywaters/learnd/internal/ui/layout"
 )
 
-templ ReportsPage() {
+templ ReportsPage(startDate, endDate string) {
 	@layout.Base("Reports - learnd") {
 		<div class="min-h-screen">
 			@components.ReportsHeader()
@@ -38,6 +38,7 @@ templ ReportsPage() {
 									type="date"
 									id="start"
 									name="start"
+									value={ startDate }
 									class="input-field w-full"
 								/>
 							</div>
@@ -49,6 +50,7 @@ templ ReportsPage() {
 									type="date"
 									id="end"
 									name="end"
+									value={ endDate }
 									class="input-field w-full"
 								/>
 							</div>
@@ -57,7 +59,7 @@ templ ReportsPage() {
 							</button>
 							<a
 								id="export-link"
-								href="/api/reports/export"
+								href={ "/api/reports/export?start=" + startDate + "&end=" + endDate }
 								class="btn-secondary w-full inline-flex items-center gap-2 justify-center px-4 py-2.5 text-sm whitespace-nowrap"
 								hx-boost="false"
 							>
