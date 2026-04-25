@@ -54,7 +54,7 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 	stampDashboardEditURLs(entryViews, dashboardPagePath(page))
 	pagination := buildDashboardPagination(page, totalPages)
 
-	if isHTMXRequest(r) {
+	if isDashboardEntriesRequest(r) {
 		if err := pages.CaptureEntriesSection(entryViews, pagination).Render(ctx, w); err != nil {
 			slog.Error("failed to render dashboard entries section", "handler", "CapturePage", "error", err)
 		}
@@ -135,6 +135,8 @@ func stampDashboardEditURLs(entries []ui.EntryView, returnTo string) {
 	}
 }
 
-func isHTMXRequest(r *http.Request) bool {
-	return r.Header.Get("HX-Request") == "true"
+func isDashboardEntriesRequest(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true" &&
+		r.Header.Get("HX-Target") == "dashboard-entries-region" &&
+		r.Header.Get("HX-Boosted") != "true"
 }

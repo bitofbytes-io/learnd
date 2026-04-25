@@ -62,7 +62,7 @@ func TestCapturePageUsesPageOffsetAndRendersPagination(t *testing.T) {
 	}
 }
 
-func TestCapturePageHTMXRequestRendersEntriesRegionOnly(t *testing.T) {
+func TestCapturePagePaginationRequestRendersEntriesRegionOnly(t *testing.T) {
 	mock := &mockEntryRepo{
 		listFn: func(_ context.Context, opts repository.ListOptions) ([]model.Entry, error) {
 			return []model.Entry{*createDashboardEntry("HTMX Entry")}, nil
@@ -78,6 +78,7 @@ func TestCapturePageHTMXRequestRendersEntriesRegionOnly(t *testing.T) {
 	handler := NewCaptureHandler(mock)
 	req := httptest.NewRequest(http.MethodGet, "/?page=2", nil)
 	req.Header.Set("HX-Request", "true")
+	req.Header.Set("HX-Target", "dashboard-entries-region")
 	rec := httptest.NewRecorder()
 
 	handler.CapturePage(rec, req)
@@ -91,6 +92,38 @@ func TestCapturePageHTMXRequestRendersEntriesRegionOnly(t *testing.T) {
 	}
 	if strings.Contains(body, "<html") || strings.Contains(body, "<main class=\"max-w-4xl") {
 		t.Fatalf("CapturePage() HTMX body should not include full page chrome: %q", body)
+	}
+}
+
+func TestCapturePageBoostedNavigationStillRendersFullPage(t *testing.T) {
+	mock := &mockEntryRepo{
+		listFn: func(_ context.Context, opts repository.ListOptions) ([]model.Entry, error) {
+			return []model.Entry{*createDashboardEntry("Boosted Entry")}, nil
+		},
+		countFn: func(_ context.Context) (int, error) {
+			return 25, nil
+		},
+		getDuplicateCountsByNormalizedURL: func(_ context.Context, normalizedURLs []string) (map[string]int, error) {
+			return map[string]int{"https://example.com/boosted-entry": 1}, nil
+		},
+	}
+
+	handler := NewCaptureHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("HX-Request", "true")
+	req.Header.Set("HX-Boosted", "true")
+	rec := httptest.NewRecorder()
+
+	handler.CapturePage(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("CapturePage() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"<html", `id="capture-form"`, `id="dashboard-entries-region"`, "Boosted Entry"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("CapturePage() boosted body missing %q: %q", want, body)
+		}
 	}
 }
 
