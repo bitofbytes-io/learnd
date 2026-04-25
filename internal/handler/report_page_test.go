@@ -35,4 +35,8 @@ func TestReportsPagePrefillsDefaultDateRange(t *testing.T) {
 	if !strings.Contains(body, exportHref) {
 		t.Fatalf("ReportsPage() body missing default export href %q", exportHref)
 	}
+
+	if !strings.Contains(body, `event.target.type === 'date'`) || !strings.Contains(body, `event.target.blur()`) {
+		t.Fatalf("ReportsPage() body missing date picker blur behavior")
+	}
 }
