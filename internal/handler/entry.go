@@ -227,7 +227,9 @@ func (h *EntryHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
-	pages.EditPage(entryView).Render(ctx, w)
+	returnTo := sanitizeReturnTo(r.URL.Query().Get("return_to"))
+	entryView.EditURL = entryEditURL(entry.ID.String(), returnTo)
+	pages.EditPage(entryView, returnTo).Render(ctx, w)
 }
 
 // Update updates an entry
@@ -445,6 +447,41 @@ func captureRedirectAfterCreate(r *http.Request) string {
 		}
 	}
 	return ""
+}
+
+func entryEditURL(id, returnTo string) string {
+	path := fmt.Sprintf("/entries/%s/edit", id)
+	if returnTo == "" || returnTo == "/" {
+		return path
+	}
+	return path + "?return_to=" + url.QueryEscape(returnTo)
+}
+
+func sanitizeReturnTo(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "/"
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" {
+		return "/"
+	}
+
+	path := parsed.EscapedPath()
+	if path == "" {
+		path = parsed.Path
+	}
+	if path == "" {
+		path = "/"
+	}
+	if !strings.HasPrefix(path, "/") {
+		return "/"
+	}
+	if parsed.RawQuery != "" {
+		return path + "?" + parsed.RawQuery
+	}
+	return path
 }
 
 func htmxCurrentPath(r *http.Request) string {

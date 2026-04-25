@@ -9,7 +9,7 @@ import (
 	"github.com/drywaters/learnd/internal/ui/layout"
 )
 
-templ EditPage(entry ui.EntryView) {
+templ EditPage(entry ui.EntryView, returnTo string) {
 	@layout.Base("Edit Entry - learnd") {
 		<div class="min-h-screen">
 			@components.CaptureHeader()
@@ -51,6 +51,7 @@ templ EditPage(entry ui.EntryView) {
 					<form
 						hx-put={ fmt.Sprintf("/api/entries/%s", entry.ID) }
 						hx-swap="none"
+						data-return-to={ returnTo }
 					>
 						<div id="form-error" class="mb-4"></div>
 
@@ -227,7 +228,7 @@ templ EditPage(entry ui.EntryView) {
 							<!-- Main actions (right side) -->
 							<div class="flex items-center gap-3 w-full sm:w-auto sm:ml-auto">
 								<a
-									href="/"
+									href={ templ.SafeURL(returnTo) }
 									class="btn-secondary flex-1 sm:flex-initial flex items-center justify-center"
 								>
 									Cancel
@@ -253,12 +254,14 @@ templ EditPage(entry ui.EntryView) {
 
 templ editScript() {
 	<script>
-		// Only redirect after the edit form is successfully submitted
-		document.querySelector('form[hx-put]').addEventListener('htmx:afterRequest', function(evt) {
-			if (evt.detail.successful) {
-				window.location.href = '/';
-			}
-		});
+		const editForm = document.querySelector('form[hx-put]');
+		if (editForm) {
+			editForm.addEventListener('htmx:afterRequest', function(evt) {
+				if (evt.detail.successful) {
+					window.location.href = editForm.dataset.returnTo || '/';
+				}
+			});
+		}
 	</script>
 }
 
@@ -289,4 +292,3 @@ func truncateURL(url string, maxLen int) string {
 	}
 	return url[:maxLen-3] + "..."
 }
-

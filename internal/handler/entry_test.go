@@ -533,13 +533,15 @@ func TestEditPage(t *testing.T) {
 	tests := []struct {
 		name           string
 		id             string
+		query          string
 		mockSetup      func(*mockEntryRepo)
 		expectedStatus int
 		expectedBody   string
 	}{
 		{
-			name: "valid entry returns 200",
-			id:   "550e8400-e29b-41d4-a716-446655440000",
+			name:  "valid entry returns 200",
+			id:    "550e8400-e29b-41d4-a716-446655440000",
+			query: "?return_to=%2F%3Fpage%3D2",
 			mockSetup: func(m *mockEntryRepo) {
 				id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 				m.getByIDFn = func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) {
@@ -598,7 +600,7 @@ func TestEditPage(t *testing.T) {
 			tt.mockSetup(mock)
 
 			router := setupTestHandler(mock)
-			path := "/entries/" + tt.id + "/edit"
+			path := "/entries/" + tt.id + "/edit" + tt.query
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			rec := httptest.NewRecorder()
 
@@ -609,6 +611,16 @@ func TestEditPage(t *testing.T) {
 			}
 			if tt.expectedBody != "" && !strings.Contains(rec.Body.String(), tt.expectedBody) {
 				t.Errorf("EditPage() body = %q, want to contain %q", rec.Body.String(), tt.expectedBody)
+			}
+			if tt.expectedStatus == http.StatusOK {
+				body := rec.Body.String()
+				if tt.query == "?return_to=%2F%3Fpage%3D2" {
+					for _, want := range []string{`href="/?page=2"`, `data-return-to="/?page=2"`} {
+						if !strings.Contains(body, want) {
+							t.Errorf("EditPage() body = %q, want to contain %q", body, want)
+						}
+					}
+				}
 			}
 		})
 	}
