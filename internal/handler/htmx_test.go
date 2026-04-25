@@ -34,6 +34,7 @@ func TestSanitizeReturnTo(t *testing.T) {
 		{name: "local dashboard page", raw: "/?page=2", want: "/?page=2"},
 		{name: "relative path rejected", raw: "dashboard", want: "/"},
 		{name: "absolute url rejected", raw: "https://evil.test/phish", want: "/"},
+		{name: "triple slash rejected", raw: "///evil.example", want: "/"},
 	}
 
 	for _, tt := range tests {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
+	"github.com/drywaters/learnd/internal/ui"
 	"github.com/drywaters/learnd/internal/ui/pages"
 	"github.com/drywaters/learnd/internal/ui/partials"
 	"github.com/drywaters/learnd/internal/urlutil"
@@ -290,6 +291,7 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
+	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
 
@@ -385,6 +387,7 @@ func (h *EntryHandler) RefreshEnrichment(w http.ResponseWriter, r *http.Request)
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
+	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
 
@@ -415,6 +418,7 @@ func (h *EntryHandler) RefreshSummary(w http.ResponseWriter, r *http.Request) {
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
+	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
 
@@ -437,6 +441,7 @@ func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
+	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
 
@@ -475,13 +480,33 @@ func sanitizeReturnTo(raw string) string {
 	if path == "" {
 		path = "/"
 	}
-	if !strings.HasPrefix(path, "/") {
+	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
 		return "/"
 	}
 	if parsed.RawQuery != "" {
 		return path + "?" + parsed.RawQuery
 	}
 	return path
+}
+
+func dashboardReturnTo(r *http.Request) string {
+	current := htmxCurrentPath(r)
+	if current == "" {
+		return ""
+	}
+	current = sanitizeReturnTo(current)
+	if current == "/" || strings.HasPrefix(current, "/?") {
+		return current
+	}
+	return ""
+}
+
+func stampDashboardEntryViewFromRequest(r *http.Request, entryView *ui.EntryView) {
+	returnTo := dashboardReturnTo(r)
+	if returnTo == "" {
+		return
+	}
+	stampDashboardEditURL(entryView, returnTo)
 }
 
 func htmxCurrentPath(r *http.Request) string {

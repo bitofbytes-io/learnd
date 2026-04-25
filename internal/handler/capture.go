@@ -122,9 +122,16 @@ func dashboardPagePath(page int) string {
 	return fmt.Sprintf("/?page=%d", page)
 }
 
+func stampDashboardEditURL(entry *ui.EntryView, returnTo string) {
+	if entry == nil {
+		return
+	}
+	entry.EditURL = entryEditURL(entry.ID.String(), returnTo)
+}
+
 func stampDashboardEditURLs(entries []ui.EntryView, returnTo string) {
 	for i := range entries {
-		entries[i].EditURL = entryEditURL(entries[i].ID.String(), returnTo)
+		stampDashboardEditURL(&entries[i], returnTo)
 	}
 }
 

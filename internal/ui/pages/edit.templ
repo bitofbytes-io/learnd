@@ -257,7 +257,7 @@ templ editScript() {
 		const editForm = document.querySelector('form[hx-put]');
 		if (editForm) {
 			editForm.addEventListener('htmx:afterRequest', function(evt) {
-				if (evt.detail.successful) {
+				if (evt.detail.elt === editForm && evt.detail.successful) {
 					window.location.href = editForm.dataset.returnTo || '/';
 				}
 			});
