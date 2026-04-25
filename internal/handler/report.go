@@ -101,11 +101,9 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 	// Build report data
 	var tagReport []partials.TagReport
 	totalTagEntries := 0
-	totalTagTime := 0
 	for _, agg := range tagAggs {
 		minutes := minutesFromSeconds(agg.TimeSeconds)
 		totalTagEntries += agg.Count
-		totalTagTime += minutes
 		tagReport = append(tagReport, partials.TagReport{
 			Tag:   agg.Tag,
 			Count: agg.Count,
@@ -121,7 +119,7 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 		TotalEntries:     totals.TotalEntries,
 		TotalTime:        minutesFromSeconds(totals.TotalTimeSeconds),
 		TotalTagEntries:  totalTagEntries,
-		TotalTagTime:     totalTagTime,
+		TotalTagTime:     minutesFromSeconds(sumTagAggregationSeconds(tagAggs)),
 		TotalTypeEntries: totalTypeEntries,
 		TotalTypeTime:    totalTypeTime,
 		ByTag:            tagReport,
@@ -135,12 +133,12 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 func buildTypeReport(typeAggs []repository.TypeAggregation) ([]partials.TypeReport, int, int) {
 	typeReport := make([]partials.TypeReport, 0, len(typeAggs))
 	totalTypeEntries := 0
-	totalTypeTime := 0
+	totalTypeSeconds := 0
 
 	for _, agg := range typeAggs {
 		minutes := minutesFromSeconds(agg.TimeSeconds)
 		totalTypeEntries += agg.Count
-		totalTypeTime += minutes
+		totalTypeSeconds += agg.TimeSeconds
 
 		displayType, badgeType := reportTypeDisplay(agg.Type)
 		typeReport = append(typeReport, partials.TypeReport{
@@ -151,7 +149,7 @@ func buildTypeReport(typeAggs []repository.TypeAggregation) ([]partials.TypeRepo
 		})
 	}
 
-	return typeReport, totalTypeEntries, totalTypeTime
+	return typeReport, totalTypeEntries, minutesFromSeconds(totalTypeSeconds)
 }
 
 func reportTypeDisplay(rawType string) (displayType string, badgeType string) {
@@ -299,6 +297,22 @@ func minutesFromSeconds(seconds int) int {
 		return 0
 	}
 	return (seconds + 59) / 60
+}
+
+func sumTagAggregationSeconds(aggs []repository.TagAggregation) int {
+	total := 0
+	for _, agg := range aggs {
+		total += agg.TimeSeconds
+	}
+	return total
+}
+
+func sumTypeAggregationSeconds(aggs []repository.TypeAggregation) int {
+	total := 0
+	for _, agg := range aggs {
+		total += agg.TimeSeconds
+	}
+	return total
 }
 
 func sanitizeCSVField(value string) string {
