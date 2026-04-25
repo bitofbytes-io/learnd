@@ -6,6 +6,7 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -96,10 +97,10 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get updated entry count
-	count, err := h.entryRepo.Count(ctx)
-	if err != nil {
-		count = 1 // Fallback to at least 1 since we just created one
+	if redirectURL := captureRedirectAfterCreate(r); redirectURL != "" {
+		w.Header().Set("HX-Redirect", redirectURL)
+		w.WriteHeader(http.StatusOK)
+		return
 	}
 
 	w.Header().Set("X-Entry-Created", "true")
@@ -125,9 +126,6 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
-	// Render OOB swap for entry count
-	partials.EntryCount(count).Render(ctx, w)
 
 	// Render OOB swap to remove empty state
 	partials.EmptyState(false, true).Render(ctx, w)
@@ -334,10 +332,13 @@ func (h *EntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		count = 0
 	}
 
-	h.htmxToast(w, "Entry deleted", &id, "")
+	if redirectURL := htmxCurrentPath(r); redirectURL != "" {
+		w.Header().Set("HX-Redirect", redirectURL)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
-	// Render OOB swap for entry count
-	partials.EntryCount(count).Render(ctx, w)
+	h.htmxToast(w, "Entry deleted", &id, "")
 
 	// Render OOB swap for empty state (show if no entries left)
 	partials.EmptyState(count == 0, true).Render(ctx, w)
@@ -435,6 +436,37 @@ func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
 	entryView := buildEntryView(entry, duplicateCount)
 	partials.EntryRow(entryView).Render(ctx, w)
+}
+
+func captureRedirectAfterCreate(r *http.Request) string {
+	if current := htmxCurrentPath(r); current != "" {
+		if current == "/" || strings.HasPrefix(current, "/?") {
+			return "/"
+		}
+	}
+	return ""
+}
+
+func htmxCurrentPath(r *http.Request) string {
+	current := strings.TrimSpace(r.Header.Get("HX-Current-URL"))
+	if current == "" {
+		return ""
+	}
+	parsed, err := url.Parse(current)
+	if err != nil {
+		return ""
+	}
+	path := parsed.EscapedPath()
+	if path == "" {
+		path = parsed.Path
+	}
+	if path == "" {
+		path = "/"
+	}
+	if parsed.RawQuery != "" {
+		return path + "?" + parsed.RawQuery
+	}
+	return path
 }
 
 func (h *EntryHandler) htmxError(w http.ResponseWriter, msg string) {
