@@ -516,10 +516,10 @@ func (r *EntryRepository) AggregateByTag(ctx context.Context, start, end time.Ti
 // AggregateByType returns entry counts and time aggregated by source type for a date range
 func (r *EntryRepository) AggregateByType(ctx context.Context, start, end time.Time) ([]TypeAggregation, error) {
 	query := `
-		SELECT source_type, COUNT(*), COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
+		SELECT COALESCE(NULLIF(BTRIM(source_type), ''), ''), COUNT(*), COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
 		FROM entries
 		WHERE created_at >= $1 AND created_at <= $2
-		GROUP BY source_type
+		GROUP BY COALESCE(NULLIF(BTRIM(source_type), ''), '')
 		ORDER BY COUNT(*) DESC
 	`
 

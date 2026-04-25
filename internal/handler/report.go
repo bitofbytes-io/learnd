@@ -103,19 +103,7 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	var typeReport []partials.TypeReport
-	totalTypeEntries := 0
-	totalTypeTime := 0
-	for _, agg := range typeAggs {
-		minutes := minutesFromSeconds(agg.TimeSeconds)
-		totalTypeEntries += agg.Count
-		totalTypeTime += minutes
-		typeReport = append(typeReport, partials.TypeReport{
-			Type:  agg.Type,
-			Count: agg.Count,
-			Time:  minutes,
-		})
-	}
+	typeReport, totalTypeEntries, totalTypeTime := buildTypeReport(typeAggs)
 
 	data := partials.ReportData{
 		Start:            start.Format("2006-01-02"),
@@ -134,6 +122,36 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 }
 
 // ExportCSV exports entries as CSV
+func buildTypeReport(typeAggs []repository.TypeAggregation) ([]partials.TypeReport, int, int) {
+	typeReport := make([]partials.TypeReport, 0, len(typeAggs))
+	totalTypeEntries := 0
+	totalTypeTime := 0
+
+	for _, agg := range typeAggs {
+		minutes := minutesFromSeconds(agg.TimeSeconds)
+		totalTypeEntries += agg.Count
+		totalTypeTime += minutes
+
+		displayType, badgeType := reportTypeDisplay(agg.Type)
+		typeReport = append(typeReport, partials.TypeReport{
+			Type:      displayType,
+			BadgeType: badgeType,
+			Count:     agg.Count,
+			Time:      minutes,
+		})
+	}
+
+	return typeReport, totalTypeEntries, totalTypeTime
+}
+
+func reportTypeDisplay(rawType string) (displayType string, badgeType string) {
+	normalized := strings.TrimSpace(rawType)
+	if normalized == "" {
+		return "No Type", string(model.SourceTypeOther)
+	}
+	return normalized, normalized
+}
+
 func (h *ReportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
