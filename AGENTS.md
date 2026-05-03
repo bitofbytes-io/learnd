@@ -13,12 +13,12 @@
 - `make templ`: generate Go code from `templ` files.
 - `make templ-watch`: watch `templ` files and regenerate on change.
 - `make run`: generate `templ`, build Tailwind CSS, and run the app via `go run ./cmd/learnd`.
+- `make dev`: run the live-reload development server with `air` (watches `.go`, `.templ`, and `.css` files).
 - `make build`: generate `templ`, build Tailwind CSS, and build a production binary at `bin/learnd`.
 - `make tail-watch`: run Tailwind in watch mode (requires the `tailwindcss` CLI).
 - `make tail-prod`: build minified Tailwind output into `static/styles.css`.
 - `make migrate`, `make migrate-down`, `make migrate-status`: apply, rollback, or inspect database migrations using `goose`.
 - `make test`: run Go tests (`go test -v ./...`).
-- `make gen-api-key`: generate a bcrypt hash for `API_KEY_HASH`.
 - `make docker-buildx`: build and push the multi-arch Docker image; set `REGISTRY`, `IMAGE_REPO`, `PLATFORMS`, and `TAG` (and optionally `VERSION`, `REVISION`, and `SOURCE_URL` for CI parity).
 
 ## Coding Style & Naming Conventions
@@ -58,6 +58,6 @@
 
 ## Configuration & Secrets
 - Copy `local.mk.example` to `local.mk` for local development; `local.mk` is gitignored.
-- Required env vars: `DATABASE_URL` and `API_KEY_HASH`. Optional: `GEMINI_API_KEY`, `YOUTUBE_API_KEY`, `LOG_LEVEL`, and `PORT`.
-- The app also supports `_FILE` variants for secrets (e.g., `API_KEY_HASH_FILE`).
+- Required env vars: `DATABASE_URL` and `API_TOKEN`. Optional: `GEMINI_API_KEY`, `YOUTUBE_API_KEY`, `LOG_LEVEL`, `PORT`, and `SECURE_COOKIES`.
+- The app also supports `_FILE` variants for secrets (e.g., `API_TOKEN_FILE`) and Docker Swarm secret files mounted under `/run/secrets/`.
 - GitHub Actions on `main` generates `templ`, builds Tailwind CSS, runs `make docker-buildx`, then force-pushes to the configured local bare repo (default `/srv/git/learnd-ci.git`) to trigger deployment.
