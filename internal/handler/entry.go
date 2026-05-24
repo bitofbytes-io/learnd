@@ -43,17 +43,18 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := strings.TrimSpace(r.FormValue("url"))
-	if url == "" {
-		h.htmxError(w, "URL is required")
+	sourceURL, err := urlutil.ValidateSourceURL(r.FormValue("url"))
+	if err != nil {
+		h.htmxError(w, err.Error())
 		return
 	}
 
 	allowDuplicate := r.FormValue("allow_duplicate") == "1"
 
-	normalizedURL := url
-	if normalized, err := urlutil.NormalizeURL(url); err == nil {
-		normalizedURL = normalized
+	normalizedURL, err := urlutil.NormalizeURL(sourceURL)
+	if err != nil {
+		h.htmxError(w, "Invalid URL")
+		return
 	}
 
 	if !allowDuplicate {
@@ -84,7 +85,7 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	notes := parseOptionalString(r.FormValue("notes"))
 
 	input := &model.CreateEntryInput{
-		SourceURL:        url,
+		SourceURL:        sourceURL,
 		NormalizedURL:    normalizedURL,
 		Tag:              tag,
 		TimeSpentSeconds: timeSpent,

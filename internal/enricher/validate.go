@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/drywaters/learnd/internal/netguard"
 )
 
 const maxRedirects = 10
@@ -15,6 +17,10 @@ const maxRedirects = 10
 func newSafeHTTPClient(timeout time.Duration, allowedHosts ...string) *http.Client {
 	return &http.Client{
 		Timeout: timeout,
+		Transport: &http.Transport{
+			Proxy:       http.ProxyFromEnvironment,
+			DialContext: safeDialContext,
+		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirects {
 				return fmt.Errorf("stopped after %d redirects", maxRedirects)
@@ -34,6 +40,20 @@ func newSafeHTTPClient(timeout time.Duration, allowedHosts ...string) *http.Clie
 			return nil
 		},
 	}
+}
+
+func safeDialContext(ctx context.Context, network string, address string) (net.Conn, error) {
+	conn, err := (&net.Dialer{}).DialContext(ctx, network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok && netguard.IsUnsafeIP(tcpAddr.IP) {
+		_ = conn.Close()
+		return nil, fmt.Errorf("remote address is not allowed")
+	}
+
+	return conn, nil
 }
 
 func validateFetchURL(ctx context.Context, rawURL string) (*url.URL, error) {
@@ -69,12 +89,12 @@ func validateParsedURL(ctx context.Context, parsedURL *url.URL) error {
 	if host == "" {
 		return fmt.Errorf("invalid URL: missing host")
 	}
-	if isLocalhost(host) {
+	if netguard.IsLocalhost(host) {
 		return fmt.Errorf("invalid URL: host is not allowed")
 	}
 
 	if ip := net.ParseIP(host); ip != nil {
-		if isPrivateIP(ip) {
+		if netguard.IsUnsafeIP(ip) {
 			return fmt.Errorf("invalid URL: host resolves to private IP")
 		}
 		return nil
@@ -88,27 +108,10 @@ func validateParsedURL(ctx context.Context, parsedURL *url.URL) error {
 		return fmt.Errorf("invalid URL: host has no addresses")
 	}
 	for _, addr := range addrs {
-		if isPrivateIP(addr.IP) {
+		if netguard.IsUnsafeIP(addr.IP) {
 			return fmt.Errorf("invalid URL: host resolves to private IP")
 		}
 	}
 
 	return nil
-}
-
-func isLocalhost(host string) bool {
-	host = strings.ToLower(strings.TrimSpace(host))
-	return host == "localhost" || strings.HasSuffix(host, ".localhost")
-}
-
-func isPrivateIP(ip net.IP) bool {
-	if ip == nil {
-		return true
-	}
-	return ip.IsLoopback() ||
-		ip.IsPrivate() ||
-		ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() ||
-		ip.IsMulticast() ||
-		ip.IsUnspecified()
 }

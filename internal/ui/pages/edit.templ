@@ -25,15 +25,24 @@ templ EditPage(entry ui.EntryView, returnTo string) {
 						<div class="flex flex-col gap-2 text-sm">
 							<div class="flex items-center">
 								<span class="font-medium w-20" style="color: var(--color-ink-light);">URL</span>
-								<a
-									href={ templ.SafeURL(entry.SourceURL) }
-									target="_blank"
-									rel="noopener noreferrer"
-									class="truncate hover:underline"
-									style="color: var(--color-accent);"
-								>
-									{ truncateURL(entry.SourceURL, 50) }
-								</a>
+								if entry.HasSourceHref {
+									<a
+										href={ templ.SafeURL(entry.SourceHref) }
+										target="_blank"
+										rel="noopener noreferrer"
+										class="truncate hover:underline"
+										style="color: var(--color-accent);"
+									>
+										{ truncateURL(entry.SourceURL, 50) }
+									</a>
+								} else {
+									<span
+										class="truncate"
+										style="color: var(--color-ink);"
+									>
+										{ truncateURL(entry.SourceURL, 50) }
+									</span>
+								}
 							</div>
 							<div class="flex items-center">
 								<span class="font-medium w-20" style="color: var(--color-ink-light);">Created</span>

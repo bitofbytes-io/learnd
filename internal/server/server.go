@@ -64,8 +64,8 @@ func (s *Server) Router() http.Handler {
 	// Auth handlers
 	authHandler := handler.NewAuthHandler(s.cfg.APIToken, s.cfg.SecureCookies)
 	r.Get("/login", authHandler.LoginPage)
-	r.Post("/login", authHandler.Login)
-	r.Post("/logout", authHandler.Logout)
+	r.With(middleware.SameOrigin).Post("/login", authHandler.Login)
+	r.With(middleware.SameOrigin).Post("/logout", authHandler.Logout)
 
 	// Protected routes
 	r.Group(func(r chi.Router) {

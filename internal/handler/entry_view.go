@@ -5,13 +5,17 @@ import (
 
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/ui"
+	"github.com/drywaters/learnd/internal/urlutil"
 )
 
 func buildEntryView(entry *model.Entry, duplicateCount int) ui.EntryView {
+	sourceHref, hasSourceHref := urlutil.SafeLinkURL(entry.SourceURL)
 	return ui.EntryView{
 		Entry:          *entry,
 		DuplicateCount: duplicateCount,
 		SwapOOB:        false,
+		SourceHref:     sourceHref,
+		HasSourceHref:  hasSourceHref,
 	}
 }
 
@@ -66,10 +70,13 @@ func buildEntryViews(ctx context.Context, repo EntryRepo, entries []model.Entry)
 			}
 		}
 
+		sourceHref, hasSourceHref := urlutil.SafeLinkURL(entry.SourceURL)
 		views = append(views, ui.EntryView{
 			Entry:          entry,
 			DuplicateCount: duplicateCount,
 			SwapOOB:        false,
+			SourceHref:     sourceHref,
+			HasSourceHref:  hasSourceHref,
 		})
 	}
 

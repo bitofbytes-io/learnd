@@ -58,19 +58,32 @@ templ EntryRow(entry ui.EntryView) {
 		<div class="flex-grow min-w-0">
 			<div class="flex items-center gap-2 mb-1">
 				@entryStatusIcons(entry)
-				<a
-					href={ templ.SafeURL(entry.SourceURL) }
-					target="_blank"
-					rel="noopener noreferrer"
-					class="text-sm font-medium truncate hover:underline"
-					style="color: var(--color-ink);"
-				>
-					if entry.Title != nil && *entry.Title != "" {
-						{ *entry.Title }
-					} else {
-						{ entry.SourceURL }
-					}
-				</a>
+				if entry.HasSourceHref {
+					<a
+						href={ templ.SafeURL(entry.SourceHref) }
+						target="_blank"
+						rel="noopener noreferrer"
+						class="text-sm font-medium truncate hover:underline"
+						style="color: var(--color-ink);"
+					>
+						if entry.Title != nil && *entry.Title != "" {
+							{ *entry.Title }
+						} else {
+							{ entry.SourceURL }
+						}
+					</a>
+				} else {
+					<span
+						class="text-sm font-medium truncate"
+						style="color: var(--color-ink);"
+					>
+						if entry.Title != nil && *entry.Title != "" {
+							{ *entry.Title }
+						} else {
+							{ entry.SourceURL }
+						}
+					</span>
+				}
 			</div>
 
 			<!-- Date + metrics -->
