@@ -29,6 +29,11 @@ func Auth(apiToken string, secureCookies bool) func(http.Handler) http.Handler {
 			}
 
 			// Fall back to cookie check (for browser access)
+			if !isSafeMethod(r.Method) && !sameOrigin(r) {
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+
 			cookie, err := r.Cookie(cookieName)
 			if err != nil {
 				redirectToLogin(w, r)

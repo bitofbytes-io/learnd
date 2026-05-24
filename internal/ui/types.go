@@ -10,6 +10,8 @@ type EntryView struct {
 	DuplicateCount int
 	SwapOOB        bool
 	EditURL        string
+	SourceHref     string
+	HasSourceHref  bool
 }
 
 // PaginationView describes a paginated dashboard state.

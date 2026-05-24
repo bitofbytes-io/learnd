@@ -52,3 +52,41 @@ func TestNormalizeURL(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateSourceURLRejectsUnsafeURLs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{name: "relative", raw: "example.com/path"},
+		{name: "unsafe scheme", raw: "javascript://example.com/%0aalert(1)"},
+		{name: "userinfo", raw: "https://user:pass@example.com/path"},
+		{name: "localhost", raw: "http://localhost:8080/path"},
+		{name: "private ip", raw: "http://192.168.1.10/path"},
+		{name: "reserved ip", raw: "http://203.0.113.10/path"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got, err := ValidateSourceURL(tt.raw); err == nil {
+				t.Fatalf("ValidateSourceURL(%q) = %q, want error", tt.raw, got)
+			}
+		})
+	}
+}
+
+func TestSafeLinkURL(t *testing.T) {
+	t.Parallel()
+
+	if href, ok := SafeLinkURL("https://Example.com/path"); !ok || href != "https://example.com/path" {
+		t.Fatalf("SafeLinkURL valid = %q/%t", href, ok)
+	}
+	if href, ok := SafeLinkURL("javascript:alert(1)"); ok || href != "" {
+		t.Fatalf("SafeLinkURL invalid = %q/%t", href, ok)
+	}
+}
