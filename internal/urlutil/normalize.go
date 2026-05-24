@@ -104,8 +104,13 @@ func parsePublicHTTPURL(raw string) (*url.URL, error) {
 	if netguard.IsLocalhost(host) {
 		return nil, fmt.Errorf("URL host is not allowed")
 	}
-	if ip := net.ParseIP(host); ip != nil && netguard.IsUnsafeIP(ip) {
-		return nil, fmt.Errorf("URL host is not allowed")
+	if ip := net.ParseIP(host); ip != nil {
+		if netguard.IsUnsafeIP(ip) {
+			return nil, fmt.Errorf("URL host is not allowed")
+		}
+		if strings.Contains(host, ":") {
+			host = "[" + host + "]"
+		}
 	}
 
 	port := parsed.Port()

@@ -35,6 +35,11 @@ func TestNormalizeURL(t *testing.T) {
 			raw:  "https://example.com",
 			want: "https://example.com/",
 		},
+		{
+			name: "preserves public ipv6 literal brackets",
+			raw:  "https://[2001:4860:4860::8888]/watch/?utm_source=newsletter",
+			want: "https://[2001:4860:4860::8888]/watch",
+		},
 	}
 
 	for _, tt := range tests {
@@ -85,6 +90,9 @@ func TestSafeLinkURL(t *testing.T) {
 
 	if href, ok := SafeLinkURL("https://Example.com/path"); !ok || href != "https://example.com/path" {
 		t.Fatalf("SafeLinkURL valid = %q/%t", href, ok)
+	}
+	if href, ok := SafeLinkURL("https://[2001:4860:4860::8888]/path"); !ok || href != "https://[2001:4860:4860::8888]/path" {
+		t.Fatalf("SafeLinkURL ipv6 = %q/%t", href, ok)
 	}
 	if href, ok := SafeLinkURL("javascript:alert(1)"); ok || href != "" {
 		t.Fatalf("SafeLinkURL invalid = %q/%t", href, ok)
