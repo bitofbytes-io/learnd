@@ -8,7 +8,7 @@ require (
 	github.com/google/generative-ai-go v0.20.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
-	golang.org/x/net v0.54.0
+	golang.org/x/net v0.55.0
 	google.golang.org/api v0.278.0
 )
 
@@ -43,7 +43,7 @@ require (
 	golang.org/x/crypto v0.51.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto v0.0.0-20260420184626-e10c466a9529 // indirect
