@@ -5,6 +5,7 @@ export DATABASE_URL=postgres://user:password@localhost:5432/learnd?sslmode=disab
 export API_TOKEN=your-secret-token-here  # Generate with: openssl rand -base64 32
 export PORT=4500
 export GEMINI_API_KEY=your-gemini-api-key
+export GEMINI_MODEL=gemini-3.1-flash-lite
 export YOUTUBE_API_KEY=your-youtube-api-key
 export LOG_LEVEL=debug
 export SECURE_COOKIES=false  # Set to false for local HTTP dev, defaults to true for production HTTPS

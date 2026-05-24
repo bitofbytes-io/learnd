@@ -187,7 +187,7 @@ func EditPage(entry ui.EntryView, returnTo string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" class=\"input-field w-full text-sm\" placeholder=\"ai\" pattern=\"[a-z0-9-]*\" title=\"Lowercase letters, numbers, and hyphens only\" autocomplete=\"off\"></div><div class=\"sm:w-32\"><label for=\"time_spent\" class=\"block text-xs font-medium mb-1.5\" style=\"color: var(--color-ink-lighter);\">Time (min)</label> <input type=\"number\" id=\"time_spent\" name=\"time_spent\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" class=\"input-field w-full text-sm\" placeholder=\"ai\" pattern=\"[a-z0-9\\-]*\" title=\"Lowercase letters, numbers, and hyphens only\" autocomplete=\"off\"></div><div class=\"sm:w-32\"><label for=\"time_spent\" class=\"block text-xs font-medium mb-1.5\" style=\"color: var(--color-ink-lighter);\">Time (min)</label> <input type=\"number\" id=\"time_spent\" name=\"time_spent\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

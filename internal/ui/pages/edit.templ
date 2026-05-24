@@ -83,7 +83,7 @@ templ EditPage(entry ui.EntryView, returnTo string) {
 											value={ safeString(entry.Tag) }
 											class="input-field w-full text-sm"
 											placeholder="ai"
-											pattern="[a-z0-9-]*"
+											pattern="[a-z0-9\-]*"
 											title="Lowercase letters, numbers, and hyphens only"
 											autocomplete="off"
 										/>
