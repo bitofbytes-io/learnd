@@ -12,7 +12,7 @@ import (
 
 const (
 	geminiProvider     = "gemini"
-	geminiDefaultModel = "gemini-2.5-flash-lite"
+	geminiDefaultModel = "gemini-3.1-flash-lite"
 	geminiVersion      = "1.0.0"
 )
 
@@ -25,12 +25,22 @@ type GeminiSummarizer struct {
 
 // NewGeminiSummarizer creates a new Gemini summarizer
 func NewGeminiSummarizer(ctx context.Context, apiKey string) (*GeminiSummarizer, error) {
+	return NewGeminiSummarizerWithModel(ctx, apiKey, geminiDefaultModel)
+}
+
+// NewGeminiSummarizerWithModel creates a new Gemini summarizer using the given model.
+func NewGeminiSummarizerWithModel(ctx context.Context, apiKey, modelName string) (*GeminiSummarizer, error) {
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
 
-	model := client.GenerativeModel(geminiDefaultModel)
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		modelName = geminiDefaultModel
+	}
+
+	model := client.GenerativeModel(modelName)
 
 	// Configure for concise summaries
 	temp := float32(0.3)
@@ -42,7 +52,7 @@ func NewGeminiSummarizer(ctx context.Context, apiKey string) (*GeminiSummarizer,
 	return &GeminiSummarizer{
 		client:    client,
 		model:     model,
-		modelName: geminiDefaultModel,
+		modelName: modelName,
 	}, nil
 }
 

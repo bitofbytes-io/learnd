@@ -13,6 +13,7 @@ type Config struct {
 	DatabaseURL   string
 	APIToken      string
 	GeminiAPIKey  string
+	GeminiModel   string
 	YouTubeAPIKey string
 	LogLevel      string
 	SecureCookies bool
@@ -35,6 +36,9 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.GeminiAPIKey, err = getEnvOrFile("GEMINI_API_KEY", "/run/secrets/learnd_gemini_api_key"); err != nil {
+		return nil, err
+	}
+	if cfg.GeminiModel, err = getEnv("GEMINI_MODEL", "gemini-3.1-flash-lite"); err != nil {
 		return nil, err
 	}
 	if cfg.YouTubeAPIKey, err = getEnvOrFile("YOUTUBE_API_KEY", "/run/secrets/learnd_youtube_api_key"); err != nil {

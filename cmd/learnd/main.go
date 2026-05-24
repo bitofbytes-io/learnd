@@ -92,7 +92,7 @@ func run() error {
 	var sum summarizer.Summarizer
 	if cfg.GeminiAPIKey != "" {
 		var err error
-		sum, err = summarizer.NewGeminiSummarizer(ctx, cfg.GeminiAPIKey)
+		sum, err = summarizer.NewGeminiSummarizerWithModel(ctx, cfg.GeminiAPIKey, cfg.GeminiModel)
 		if err != nil {
 			slog.Warn("failed to initialize Gemini summarizer", "error", err)
 		} else {

@@ -26,8 +26,10 @@ If you later run Playwright in headless mode and see missing browser executable 
 
 ## Configuration
 
-- `DATABASE_URL` and `API_KEY_HASH` are required.
+- `DATABASE_URL` and `API_TOKEN` are required.
 - `PORT` is optional; it defaults to `4500`.
+- `GEMINI_API_KEY` enables AI summaries.
+- `GEMINI_MODEL` is optional; it defaults to `gemini-3.1-flash-lite`.
 
 ## Health
 

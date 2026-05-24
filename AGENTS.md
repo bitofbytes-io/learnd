@@ -58,6 +58,6 @@
 
 ## Configuration & Secrets
 - Copy `local.mk.example` to `local.mk` for local development; `local.mk` is gitignored.
-- Required env vars: `DATABASE_URL` and `API_TOKEN`. Optional: `GEMINI_API_KEY`, `YOUTUBE_API_KEY`, `LOG_LEVEL`, `PORT`, and `SECURE_COOKIES`.
+- Required env vars: `DATABASE_URL` and `API_TOKEN`. Optional: `GEMINI_API_KEY`, `GEMINI_MODEL`, `YOUTUBE_API_KEY`, `LOG_LEVEL`, `PORT`, and `SECURE_COOKIES`.
 - The app also supports `_FILE` variants for secrets (e.g., `API_TOKEN_FILE`) and Docker Swarm secret files mounted under `/run/secrets/`.
 - GitHub Actions on `main` generates `templ`, builds Tailwind CSS, runs `make docker-buildx`, then force-pushes to the configured local bare repo (default `/srv/git/learnd-ci.git`) to trigger deployment.
