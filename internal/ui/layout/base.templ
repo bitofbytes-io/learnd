@@ -24,6 +24,9 @@ templ Base(title string) {
 		<script src="/static/htmx.min.js"></script>
 		<meta name="htmx-config" content='{"responseHandling": [{"code":"204", "swap": false}, {"code":"[23]..", "swap": true}, {"code":"422", "swap": true, "error": true}, {"code":"[45]..", "swap": false, "error": true}]}'/>
 
+		<!-- Analytics -->
+		@umamiScript()
+
 		<!-- Tailwind + Custom Styles -->
 		<link rel="stylesheet" href="/static/styles.css"/>
 	</head>
@@ -36,6 +39,22 @@ templ Base(title string) {
 		@toastScript()
 	</body>
 	</html>
+}
+
+templ umamiScript() {
+	<script>
+		(function () {
+			if (window.location.hostname !== "learnd.bitofbytes.io") {
+				return;
+			}
+
+			var script = document.createElement("script");
+			script.async = true;
+			script.dataset.websiteId = "1f6328da-a0b4-4874-9209-80d94604dbef";
+			script.src = "https://learnd.bitofbytes.io/umami/script.js";
+			document.head.appendChild(script);
+		})();
+	</script>
 }
 
 templ toastScript() {
