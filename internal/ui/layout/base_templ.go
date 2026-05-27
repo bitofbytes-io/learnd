@@ -42,7 +42,15 @@ func Base(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><!-- Favicons --><link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"/apple-touch-icon.png\"><link rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/favicon-32x32.png\"><link rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/favicon-16x16.png\"><link rel=\"icon\" type=\"image/x-icon\" href=\"/favicon.ico\"><link rel=\"manifest\" href=\"/site.webmanifest\"><!-- Fonts --><link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin><link href=\"https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500&display=swap\" rel=\"stylesheet\"><!-- HTMX --><script src=\"/static/htmx.min.js\"></script><meta name=\"htmx-config\" content='{\"responseHandling\": [{\"code\":\"204\", \"swap\": false}, {\"code\":\"[23]..\", \"swap\": true}, {\"code\":\"422\", \"swap\": true, \"error\": true}, {\"code\":\"[45]..\", \"swap\": false, \"error\": true}]}'><!-- Analytics --><script async defer data-website-id=\"1f6328da-a0b4-4874-9209-80d94604dbef\" src=\"https://learnd.bitofbytes.io/umami/script.js\"></script><!-- Tailwind + Custom Styles --><link rel=\"stylesheet\" href=\"/static/styles.css\"></head><body class=\"antialiased\" hx-boost=\"true\"><!-- Toast Container --><div id=\"toast-container\" class=\"fixed top-4 right-4 z-50 flex flex-col gap-2\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><!-- Favicons --><link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"/apple-touch-icon.png\"><link rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/favicon-32x32.png\"><link rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/favicon-16x16.png\"><link rel=\"icon\" type=\"image/x-icon\" href=\"/favicon.ico\"><link rel=\"manifest\" href=\"/site.webmanifest\"><!-- Fonts --><link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin><link href=\"https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500&display=swap\" rel=\"stylesheet\"><!-- HTMX --><script src=\"/static/htmx.min.js\"></script><meta name=\"htmx-config\" content='{\"responseHandling\": [{\"code\":\"204\", \"swap\": false}, {\"code\":\"[23]..\", \"swap\": true}, {\"code\":\"422\", \"swap\": true, \"error\": true}, {\"code\":\"[45]..\", \"swap\": false, \"error\": true}]}'><!-- Analytics -->")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = umamiScript().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<!-- Tailwind + Custom Styles --><link rel=\"stylesheet\" href=\"/static/styles.css\"></head><body class=\"antialiased\" hx-boost=\"true\"><!-- Toast Container --><div id=\"toast-container\" class=\"fixed top-4 right-4 z-50 flex flex-col gap-2\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -54,7 +62,36 @@ func Base(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</body></html>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func umamiScript() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var3 == nil {
+			templ_7745c5c3_Var3 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<script>\n\t\t(function () {\n\t\t\tif (window.location.hostname !== \"learnd.bitofbytes.io\") {\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\tvar script = document.createElement(\"script\");\n\t\t\tscript.async = true;\n\t\t\tscript.dataset.websiteId = \"1f6328da-a0b4-4874-9209-80d94604dbef\";\n\t\t\tscript.src = \"https://learnd.bitofbytes.io/umami/script.js\";\n\t\t\tdocument.head.appendChild(script);\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -78,12 +115,12 @@ func toastScript() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var3 == nil {
-			templ_7745c5c3_Var3 = templ.NopComponent
+		templ_7745c5c3_Var4 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var4 == nil {
+			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<script>\n\t\t(function () {\n\t\t\tif (window.__toastHandlersInitialized) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__toastHandlersInitialized = true;\n\n\t\t\t// Toast handling\n\t\t\tdocument.body.addEventListener('showToast', function(evt) {\n\t\t\t\tconst detail = evt.detail || {};\n\t\t\t\tconst message = detail.message || 'Action completed';\n\t\t\t\tconst type = detail.type || 'success';\n\t\t\t\tconst id = detail.id || '';\n\t\t\t\tconst now = Date.now();\n\t\t\t\tconst toastKey = `${id}:${type}:${message}`;\n\t\t\t\tconst lastToast = window.__lastToast || {};\n\n\t\t\t\tif (lastToast.key === toastKey && now - lastToast.time < 500) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\twindow.__lastToast = { key: toastKey, time: now };\n\n\t\t\t\tconst toast = document.createElement('div');\n\t\t\t\ttoast.className = `toast-enter px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 ${\n\t\t\t\t\ttype === 'error'\n\t\t\t\t\t\t? 'bg-red-50 border border-red-200 text-red-800'\n\t\t\t\t\t\t: 'bg-white border border-gray-200 text-gray-800'\n\t\t\t\t}`;\n\n\t\t\t\t// Build toast content safely using DOM APIs to prevent XSS\n\t\t\tconst svgNS = 'http://www.w3.org/2000/svg';\n\t\t\tconst icon = document.createElementNS(svgNS, 'svg');\n\t\t\ticon.setAttribute('class', type === 'error' ? 'w-5 h-5 text-red-500' : 'w-5 h-5 text-green-600');\n\t\t\ticon.setAttribute('fill', 'none');\n\t\t\ticon.setAttribute('stroke', 'currentColor');\n\t\t\ticon.setAttribute('viewBox', '0 0 24 24');\n\n\t\t\tconst path = document.createElementNS(svgNS, 'path');\n\t\t\tpath.setAttribute('stroke-linecap', 'round');\n\t\t\tpath.setAttribute('stroke-linejoin', 'round');\n\t\t\tpath.setAttribute('stroke-width', '2');\n\t\t\tpath.setAttribute('d', type === 'error'\n\t\t\t\t? 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'\n\t\t\t\t: 'M5 13l4 4L19 7');\n\t\t\ticon.appendChild(path);\n\t\t\ttoast.appendChild(icon);\n\n\t\t\tconst msgSpan = document.createElement('span');\n\t\t\tmsgSpan.className = 'text-sm font-medium';\n\t\t\tmsgSpan.textContent = message;\n\t\t\ttoast.appendChild(msgSpan);\n\n\t\t\tconst container = document.getElementById('toast-container');\n\t\t\tcontainer.appendChild(toast);\n\n\t\t\t\tsetTimeout(() => {\n\t\t\t\t\ttoast.classList.remove('toast-enter');\n\t\t\t\t\ttoast.classList.add('toast-exit');\n\t\t\t\t\tsetTimeout(() => toast.remove(), 300);\n\t\t\t\t}, 3000);\n\t\t\t});\n\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<script>\n\t\t(function () {\n\t\t\tif (window.__toastHandlersInitialized) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__toastHandlersInitialized = true;\n\n\t\t\t// Toast handling\n\t\t\tdocument.body.addEventListener('showToast', function(evt) {\n\t\t\t\tconst detail = evt.detail || {};\n\t\t\t\tconst message = detail.message || 'Action completed';\n\t\t\t\tconst type = detail.type || 'success';\n\t\t\t\tconst id = detail.id || '';\n\t\t\t\tconst now = Date.now();\n\t\t\t\tconst toastKey = `${id}:${type}:${message}`;\n\t\t\t\tconst lastToast = window.__lastToast || {};\n\n\t\t\t\tif (lastToast.key === toastKey && now - lastToast.time < 500) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\twindow.__lastToast = { key: toastKey, time: now };\n\n\t\t\t\tconst toast = document.createElement('div');\n\t\t\t\ttoast.className = `toast-enter px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 ${\n\t\t\t\t\ttype === 'error'\n\t\t\t\t\t\t? 'bg-red-50 border border-red-200 text-red-800'\n\t\t\t\t\t\t: 'bg-white border border-gray-200 text-gray-800'\n\t\t\t\t}`;\n\n\t\t\t\t// Build toast content safely using DOM APIs to prevent XSS\n\t\t\tconst svgNS = 'http://www.w3.org/2000/svg';\n\t\t\tconst icon = document.createElementNS(svgNS, 'svg');\n\t\t\ticon.setAttribute('class', type === 'error' ? 'w-5 h-5 text-red-500' : 'w-5 h-5 text-green-600');\n\t\t\ticon.setAttribute('fill', 'none');\n\t\t\ticon.setAttribute('stroke', 'currentColor');\n\t\t\ticon.setAttribute('viewBox', '0 0 24 24');\n\n\t\t\tconst path = document.createElementNS(svgNS, 'path');\n\t\t\tpath.setAttribute('stroke-linecap', 'round');\n\t\t\tpath.setAttribute('stroke-linejoin', 'round');\n\t\t\tpath.setAttribute('stroke-width', '2');\n\t\t\tpath.setAttribute('d', type === 'error'\n\t\t\t\t? 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'\n\t\t\t\t: 'M5 13l4 4L19 7');\n\t\t\ticon.appendChild(path);\n\t\t\ttoast.appendChild(icon);\n\n\t\t\tconst msgSpan = document.createElement('span');\n\t\t\tmsgSpan.className = 'text-sm font-medium';\n\t\t\tmsgSpan.textContent = message;\n\t\t\ttoast.appendChild(msgSpan);\n\n\t\t\tconst container = document.getElementById('toast-container');\n\t\t\tcontainer.appendChild(toast);\n\n\t\t\t\tsetTimeout(() => {\n\t\t\t\t\ttoast.classList.remove('toast-enter');\n\t\t\t\t\ttoast.classList.add('toast-exit');\n\t\t\t\t\tsetTimeout(() => toast.remove(), 300);\n\t\t\t\t}, 3000);\n\t\t\t});\n\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
