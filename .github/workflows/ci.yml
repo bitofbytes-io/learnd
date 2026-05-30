@@ -56,9 +56,9 @@ jobs:
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          audience: ${{ secrets.TS_AUDIENCE }}
+          audience: ${{ vars.TS_AUDIENCE }}
           tags: tag:ci
-          ping: ${{ vars.MANAGER_HOST }}
+          ping: ${{ env.MANAGER_HOST }}
 
       - name: Log in to registry
         uses: docker/login-action@v4
