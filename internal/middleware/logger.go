@@ -8,14 +8,14 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
-// Logger is a middleware that logs HTTP requests
+// Logger records HTTP access logs at debug level to keep normal app logs focused.
 func Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
 
 		defer func() {
-			slog.Info("http request",
+			slog.Debug("http request",
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", ww.Status(),
