@@ -15,18 +15,23 @@ func Logger(next http.Handler) http.Handler {
 		ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
 
 		defer func() {
+			status := ww.Status()
+			if status == 0 {
+				status = http.StatusOK
+			}
+
 			attrs := []any{
 				"method", r.Method,
 				"path", r.URL.Path,
-				"status", ww.Status(),
+				"status", status,
 				"bytes", ww.BytesWritten(),
 				"duration", time.Since(start).String(),
 				"request_id", chimw.GetReqID(r.Context()),
 			}
 			switch {
-			case ww.Status() >= http.StatusInternalServerError:
+			case status >= http.StatusInternalServerError:
 				slog.Error("http request", attrs...)
-			case ww.Status() >= http.StatusBadRequest:
+			case status >= http.StatusBadRequest:
 				slog.Warn("http request", attrs...)
 			default:
 				slog.Debug("http request", attrs...)
