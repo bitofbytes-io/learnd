@@ -2,6 +2,7 @@ package handler
 
 import (
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -42,18 +43,21 @@ func (h *AuthHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
 // Login handles the login form submission
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
+		slog.Info("login failed", "reason", "invalid_request")
 		http.Redirect(w, r, "/login?error=invalid_request", http.StatusSeeOther)
 		return
 	}
 
 	apiKey := r.FormValue("api_key")
 	if apiKey == "" {
+		slog.Info("login failed", "reason", "missing_key")
 		http.Redirect(w, r, "/login?error=missing_key", http.StatusSeeOther)
 		return
 	}
 
 	// Validate the API token with constant-time comparison
 	if !constantTimeEqual(apiKey, h.apiToken) {
+		slog.Info("login failed", "reason", "invalid_key")
 		http.Redirect(w, r, "/login?error=invalid_key", http.StatusSeeOther)
 		return
 	}
@@ -74,6 +78,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if redirectURL == "" || !isValidRedirect(redirectURL) {
 		redirectURL = "/"
 	}
+	slog.Info("login successful", "redirect_to", redirectURL)
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
@@ -99,6 +104,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.secureCookies,
 		SameSite: http.SameSiteLaxMode,
 	})
+	slog.Info("logout")
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 

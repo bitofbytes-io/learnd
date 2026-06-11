@@ -126,6 +126,7 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 		ByType:           typeReport,
 	}
 
+	slog.Info("report generated", "start", data.Start, "end", data.End, "total_entries", data.TotalEntries)
 	partials.ReportResults(data).Render(ctx, w)
 }
 
@@ -207,6 +208,7 @@ func (h *ReportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to get entries", http.StatusInternalServerError)
 		return
 	}
+	slog.Info("csv export started", "start", start.Format("2006-01-02"), "end", end.Format("2006-01-02"), "first_page_count", len(entries))
 
 	// Now safe to write headers and begin streaming
 	w.Header().Set("Content-Type", "text/csv")
