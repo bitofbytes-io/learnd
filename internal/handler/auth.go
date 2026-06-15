@@ -78,7 +78,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if redirectURL == "" || !isValidRedirect(redirectURL) {
 		redirectURL = "/"
 	}
-	slog.Info("login successful", "redirect_to", redirectURL)
+	slog.Info("login successful", "redirect_to", sanitizeRedirectForLog(redirectURL))
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
@@ -90,6 +90,14 @@ func isValidRedirect(rawURL string) bool {
 	}
 	// Must be a relative path with no scheme or host (prevents open redirect)
 	return parsed.Scheme == "" && parsed.Host == "" && len(parsed.Path) > 0 && parsed.Path[0] == '/'
+}
+
+func sanitizeRedirectForLog(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Path == "" {
+		return "/"
+	}
+	return parsed.Path
 }
 
 // Logout clears the session cookie
