@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,24 +25,28 @@ func Auth(apiToken string, secureCookies bool) func(http.Handler) http.Handler {
 					}
 				}
 				// Invalid bearer token
+				slog.Info("api authentication failed", "reason", "invalid_bearer_token", "path", r.URL.Path)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
 
 			// Fall back to cookie check (for browser access)
 			if !isSafeMethod(r.Method) && !sameOrigin(r) {
+				slog.Info("browser authentication failed", "reason", "cross_site_request", "path", r.URL.Path)
 				http.Error(w, "Forbidden", http.StatusForbidden)
 				return
 			}
 
 			cookie, err := r.Cookie(cookieName)
 			if err != nil {
+				slog.Info("browser authentication required", "path", r.URL.Path)
 				redirectToLogin(w, r)
 				return
 			}
 
 			if !constantTimeEqual(cookie.Value, apiToken) {
 				// Invalid cookie, clear it and redirect
+				slog.Info("browser authentication failed", "reason", "invalid_cookie", "path", r.URL.Path)
 				http.SetCookie(w, &http.Cookie{
 					Name:     cookieName,
 					Value:    "",

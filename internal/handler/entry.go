@@ -99,6 +99,7 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("entry created", "entry_id", entry.ID, "allow_duplicate", allowDuplicate)
 	if redirectURL := captureRedirectAfterCreate(r); redirectURL != "" {
 		w.Header().Set("HX-Redirect", redirectURL)
 		w.WriteHeader(http.StatusOK)
@@ -288,6 +289,7 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("entry updated", "entry_id", entry.ID)
 	h.htmxToast(w, "Entry updated", &entry.ID, "")
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
@@ -330,6 +332,7 @@ func (h *EntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to delete entry", http.StatusInternalServerError)
 		return
 	}
+	slog.Info("entry deleted", "entry_id", id)
 
 	// Get updated entry count
 	count, err := h.entryRepo.Count(ctx)
@@ -384,6 +387,7 @@ func (h *EntryHandler) RefreshEnrichment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	slog.Info("entry enrichment queued", "entry_id", id)
 	h.htmxToast(w, "Enrichment queued", &id, "")
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
@@ -415,6 +419,7 @@ func (h *EntryHandler) RefreshSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("entry summary queued", "entry_id", id)
 	h.htmxToast(w, "Summary queued", &id, "")
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
