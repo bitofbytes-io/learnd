@@ -7,7 +7,7 @@
 - `static/` holds compiled assets (e.g., `static/styles.css`).
 - `tailwind/` contains source CSS for Tailwind; do not edit generated CSS directly.
 - `migrations/` contains Goose SQL migrations (e.g., `001_create_entries.sql`).
-- `scripts/` contains helper utilities (e.g., API key hashing).
+- `scripts/` contains helper utilities such as `auth-capture.js` for saving Playwright `storageState` after manual login.
 
 ## Build, Test, and Development Commands
 - `make templ`: generate Go code from `templ` files.
