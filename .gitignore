@@ -25,6 +25,7 @@ go.work
 
 # Local environment config
 local.mk
+learnd.env
 .worktree.json
 
 # Playwright auth state capture

@@ -1,0 +1,6 @@
+.git
+.github
+learnd.env
+local.mk
+bin/
+node_modules/
