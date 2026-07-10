@@ -6,7 +6,7 @@ Learnd is a self-hosted learning journal for saving articles, videos, podcasts, 
 
 - Docker 24+
 - PostgreSQL 15+
-- Tailwind CSS CLI to prepare the generated stylesheet
+- [Tailwind CSS CLI](https://github.com/tailwindlabs/tailwindcss/releases) to prepare the generated stylesheet
 - Goose for database migrations
 - Optional Google API keys for the [Gemini API](https://ai.google.dev/gemini-api/docs/api-key) and [YouTube Data API v3](https://developers.google.com/youtube/v3/getting-started)
 
@@ -65,11 +65,14 @@ docker run -d --name db --network learnd \
   -p 5432:5432 \
   -v learnd-postgres:/var/lib/postgresql/data \
   postgres:17
+
+until docker exec db pg_isready -U learnd -d learnd >/dev/null 2>&1; do sleep 1; done
 ```
 
 Apply migrations before starting Learnd:
 
 ```bash
+go install github.com/pressly/goose/v3/cmd/goose@latest
 export DATABASE_URL='postgres://learnd:change-me@localhost:5432/learnd?sslmode=disable'
 goose -dir migrations postgres "$DATABASE_URL" up
 ```
