@@ -44,18 +44,8 @@ func (r *SummaryCacheRepository) GetByURLHash(ctx context.Context, urlHash strin
 
 // Store saves a summary to the cache
 func (r *SummaryCacheRepository) Store(ctx context.Context, cache *model.SummaryCache) error {
-	query := `
-		INSERT INTO summary_cache (url_hash, canonical_url, summary_text, provider, model, version)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (url_hash) DO UPDATE SET
-			summary_text = EXCLUDED.summary_text,
-			provider = EXCLUDED.provider,
-			model = EXCLUDED.model,
-			version = EXCLUDED.version,
-			created_at = NOW()
-	`
 
-	_, err := r.pool.Exec(ctx, query,
+	_, err := r.pool.Exec(ctx, storeSummaryCacheSQL,
 		cache.URLHash, cache.CanonicalURL, cache.SummaryText,
 		cache.Provider, cache.Model, cache.Version,
 	)
@@ -65,3 +55,14 @@ func (r *SummaryCacheRepository) Store(ctx context.Context, cache *model.Summary
 
 	return nil
 }
+
+const storeSummaryCacheSQL = `
+		INSERT INTO summary_cache (url_hash, canonical_url, summary_text, provider, model, version)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (url_hash) DO UPDATE SET
+			summary_text = EXCLUDED.summary_text,
+			provider = EXCLUDED.provider,
+			model = EXCLUDED.model,
+			version = EXCLUDED.version,
+			created_at = NOW()
+	`

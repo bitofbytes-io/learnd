@@ -274,50 +274,6 @@ func (r *EntryRepository) GetDuplicateCountsByNormalizedURL(ctx context.Context,
 	return counts, nil
 }
 
-// GetPendingEnrichment retrieves entries pending enrichment
-func (r *EntryRepository) GetPendingEnrichment(ctx context.Context, limit int) ([]model.Entry, error) {
-	query := `
-		SELECT id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
-		       canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
-		       enrichment_status, enrichment_error, enriched_at,
-		       summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at
-		FROM entries
-		WHERE enrichment_status = 'pending'
-		ORDER BY created_at ASC
-		LIMIT $1
-	`
-
-	rows, err := r.pool.Query(ctx, query, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pending enrichment: %w", err)
-	}
-	defer rows.Close()
-
-	return scanEntries(rows)
-}
-
-// GetPendingSummary retrieves entries pending summarization (enrichment must be complete)
-func (r *EntryRepository) GetPendingSummary(ctx context.Context, limit int) ([]model.Entry, error) {
-	query := `
-		SELECT id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
-		       canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
-		       enrichment_status, enrichment_error, enriched_at,
-		       summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at
-		FROM entries
-		WHERE summary_status = 'pending' AND enrichment_status = 'ok'
-		ORDER BY created_at ASC
-		LIMIT $1
-	`
-
-	rows, err := r.pool.Query(ctx, query, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pending summary: %w", err)
-	}
-	defer rows.Close()
-
-	return scanEntries(rows)
-}
-
 // ListByNormalizedURL retrieves entries matching the normalized URL.
 func (r *EntryRepository) ListByNormalizedURL(ctx context.Context, normalizedURL string) ([]model.Entry, error) {
 	query := `
@@ -339,47 +295,6 @@ func (r *EntryRepository) ListByNormalizedURL(ctx context.Context, normalizedURL
 	return scanEntries(rows)
 }
 
-// UpdateEnrichmentStatus updates the enrichment status of an entry
-func (r *EntryRepository) UpdateEnrichmentStatus(ctx context.Context, id uuid.UUID, status model.ProcessingStatus, errMsg *string) error {
-	query := `
-		UPDATE entries
-		SET enrichment_status = $2, enrichment_error = $3, enriched_at = $4, updated_at = NOW()
-		WHERE id = $1
-	`
-
-	var enrichedAt *time.Time
-	if status == model.StatusOK || status == model.StatusFailed {
-		now := time.Now()
-		enrichedAt = &now
-	}
-
-	_, err := r.pool.Exec(ctx, query, id, status, errMsg, enrichedAt)
-	if err != nil {
-		return fmt.Errorf("failed to update enrichment status: %w", err)
-	}
-	return nil
-}
-
-// UpdateEnrichmentResult updates enrichment result fields
-func (r *EntryRepository) UpdateEnrichmentResult(ctx context.Context, id uuid.UUID, result *EnrichmentResult) error {
-	query := `
-		UPDATE entries
-		SET canonical_url = $2, domain = $3, source_type = $4, title = $5, description = $6,
-		    published_at = $7, runtime_seconds = $8, metadata_json = $9,
-		    enrichment_status = 'ok', enrichment_error = NULL, enriched_at = NOW(), updated_at = NOW()
-		WHERE id = $1
-	`
-
-	_, err := r.pool.Exec(ctx, query, id,
-		result.CanonicalURL, result.Domain, result.SourceType, result.Title, result.Description,
-		result.PublishedAt, result.RuntimeSeconds, result.MetadataJSON,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to update enrichment result: %w", err)
-	}
-	return nil
-}
-
 // EnrichmentResult holds the result of URL enrichment
 type EnrichmentResult struct {
 	CanonicalURL   string
@@ -390,39 +305,6 @@ type EnrichmentResult struct {
 	PublishedAt    *time.Time
 	RuntimeSeconds *int
 	MetadataJSON   []byte
-}
-
-// UpdateSummaryStatus updates the summary status of an entry
-func (r *EntryRepository) UpdateSummaryStatus(ctx context.Context, id uuid.UUID, status model.ProcessingStatus, errMsg *string) error {
-	query := `
-		UPDATE entries
-		SET summary_status = $2, summary_error = $3, updated_at = NOW()
-		WHERE id = $1
-	`
-
-	_, err := r.pool.Exec(ctx, query, id, status, errMsg)
-	if err != nil {
-		return fmt.Errorf("failed to update summary status: %w", err)
-	}
-	return nil
-}
-
-// UpdateSummaryResult updates summary result fields
-func (r *EntryRepository) UpdateSummaryResult(ctx context.Context, id uuid.UUID, result *SummaryResult) error {
-	query := `
-		UPDATE entries
-		SET summary_text = $2, summary_provider = $3, summary_model = $4, summary_version = $5,
-		    summary_status = 'ok', summary_error = NULL, summary_generated_at = $6, updated_at = NOW()
-		WHERE id = $1
-	`
-
-	_, err := r.pool.Exec(ctx, query, id,
-		result.Text, result.Provider, result.Model, result.Version, result.GeneratedAt,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to update summary result: %w", err)
-	}
-	return nil
 }
 
 // SummaryResult holds the result of summarization
@@ -438,26 +320,13 @@ type SummaryResult struct {
 func (r *EntryRepository) ResetEnrichment(ctx context.Context, id uuid.UUID) error {
 	query := `
 		UPDATE entries
-		SET enrichment_status = 'pending', enrichment_error = NULL, enriched_at = NULL, updated_at = NOW()
+		SET enrichment_status = 'pending', enrichment_error = NULL, enriched_at = NULL,
+            enrichment_claim_token = NULL, enrichment_lease_expires_at = NULL, updated_at = NOW()
 		WHERE id = $1
 	`
 	_, err := r.pool.Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to reset enrichment: %w", err)
-	}
-	return nil
-}
-
-// ResetSummary resets summary status to pending
-func (r *EntryRepository) ResetSummary(ctx context.Context, id uuid.UUID) error {
-	query := `
-		UPDATE entries
-		SET summary_status = 'pending', summary_error = NULL, summary_generated_at = NULL, updated_at = NOW()
-		WHERE id = $1
-	`
-	_, err := r.pool.Exec(ctx, query, id)
-	if err != nil {
-		return fmt.Errorf("failed to reset summary: %w", err)
 	}
 	return nil
 }
