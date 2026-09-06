@@ -246,3 +246,79 @@ func TestProcessingDeadlineDoesNotAutomaticallyRetry(t *testing.T) {
 		})
 	}
 }
+
+func TestSuccessfulProviderResultHasSeparateSaveDeadline(t *testing.T) {
+	for _, kind := range []repository.JobKind{repository.EnrichmentJob, repository.SummaryJob} {
+		t.Run(string(kind), func(t *testing.T) {
+			pool := testdb.New(t)
+			repo := repository.NewEntryRepository(pool)
+			id := createWorkerEntry(t, pool, kind == repository.SummaryJob)
+			// Delay successful persistence beyond the provider's remaining time and count
+			// committed saves. Claiming the job does not invoke this trigger.
+			_, err := pool.Exec(context.Background(), `
+    CREATE TABLE completed_job_saves (id UUID NOT NULL);
+    CREATE FUNCTION delay_completed_job_save() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      PERFORM pg_sleep(0.2);
+      INSERT INTO completed_job_saves (id) VALUES (NEW.id);
+      RETURN NEW;
+    END $$;
+    CREATE TRIGGER delay_completed_job_save AFTER UPDATE ON entries
+    FOR EACH ROW WHEN (NEW.`+string(kind)+`_status = 'ok' AND OLD.`+string(kind)+`_status = 'processing')
+    EXECUTE FUNCTION delay_completed_job_save();`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var calls int
+			var providerDeadline time.Time
+			nearDeadline := func(ctx context.Context) {
+				calls++
+				var ok bool
+				providerDeadline, ok = ctx.Deadline()
+				if !ok {
+					t.Fatal("provider context has no deadline")
+				}
+				time.Sleep(max(0, time.Until(providerDeadline)-50*time.Millisecond))
+			}
+			enrich := fakeEnricher{call: func(ctx context.Context, sourceURL string) (*enricher.Result, error) {
+				nearDeadline(ctx)
+				return &enricher.Result{CanonicalURL: sourceURL, Domain: "example.test", SourceType: model.SourceTypeArticle, Title: "saved enrichment"}, nil
+			}}
+			summarize := fakeSummarizer{call: func(ctx context.Context, _ summarizer.Input) (*summarizer.Result, error) {
+				nearDeadline(ctx)
+				return &summarizer.Result{Text: "saved summary", Provider: "fake", Model: "fake", Version: "1", GeneratedAt: time.Now()}, nil
+			}}
+			worker := New(repo, repository.NewSummaryCacheRepository(pool), enricher.NewRegistry(enrich), summarize, Config{BatchSize: 1})
+			worker.processingTimeout = 500 * time.Millisecond
+			process := worker.processEnrichment
+			if kind == repository.SummaryJob {
+				process = worker.processSummarization
+			}
+			process(context.Background())
+			if !time.Now().After(providerDeadline) {
+				t.Fatal("save did not extend beyond provider deadline")
+			}
+			entry, err := repo.GetByID(context.Background(), id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, result := entry.EnrichmentStatus, entry.Title
+			expected := "saved enrichment"
+			if kind == repository.SummaryJob {
+				status, result, expected = entry.SummaryStatus, entry.SummaryText, "saved summary"
+			}
+			if status != model.StatusOK || result == nil || *result != expected {
+				t.Fatalf("result not saved: status=%s result=%v", status, result)
+			}
+			// Once saved, a later processing pass must not call the provider again.
+			process(context.Background())
+			var saves int
+			if err := pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM completed_job_saves WHERE id = $1`, id).Scan(&saves); err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 || saves != 1 {
+				t.Fatalf("provider calls=%d committed saves=%d; want one of each", calls, saves)
+			}
+		})
+	}
+}

@@ -134,6 +134,7 @@ func (w *Worker) enrich(parent context.Context, claim *repository.JobClaim) {
 	ctx, cancel := context.WithTimeout(parent, w.processingTimeout)
 	defer cancel()
 	result, err := w.enrichRegistry.Enrich(ctx, claim.Entry.SourceURL)
+	cancel()
 	if err != nil {
 		w.finishError(parent, repository.EnrichmentJob, claim, err)
 		return
@@ -146,7 +147,9 @@ func (w *Worker) enrich(parent context.Context, claim *repository.JobClaim) {
 			metadata = nil
 		}
 	}
-	err = w.entryRepo.CompleteEnrichment(ctx, claim, &repository.EnrichmentResult{
+	saveCtx, cancelSave := context.WithTimeout(parent, 5*time.Second)
+	defer cancelSave()
+	err = w.entryRepo.CompleteEnrichment(saveCtx, claim, &repository.EnrichmentResult{
 		CanonicalURL: result.CanonicalURL, Domain: result.Domain, SourceType: result.SourceType,
 		Title: sanitizeUTF8(result.Title), Description: sanitizeUTF8(result.Description),
 		PublishedAt: result.PublishedAt, RuntimeSeconds: result.RuntimeSeconds, MetadataJSON: metadata,
@@ -192,7 +195,10 @@ func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {
 			return
 		}
 		if cached != nil {
-			err = w.entryRepo.CompleteSummary(ctx, claim, &repository.SummaryResult{
+			cancel()
+			saveCtx, cancelSave := context.WithTimeout(parent, 5*time.Second)
+			defer cancelSave()
+			err = w.entryRepo.CompleteSummary(saveCtx, claim, &repository.SummaryResult{
 				Text: cached.SummaryText, Provider: cached.Provider, Model: cached.Model,
 				Version: cached.Version, GeneratedAt: cached.CreatedAt,
 			}, nil)
@@ -211,11 +217,14 @@ func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {
 		input.Tag = *entry.Tag
 	}
 	result, err := w.summarizer.Summarize(ctx, input)
+	cancel()
 	if err != nil {
 		w.finishError(parent, repository.SummaryJob, claim, err)
 		return
 	}
-	err = w.entryRepo.CompleteSummary(ctx, claim, &repository.SummaryResult{
+	saveCtx, cancelSave := context.WithTimeout(parent, 5*time.Second)
+	defer cancelSave()
+	err = w.entryRepo.CompleteSummary(saveCtx, claim, &repository.SummaryResult{
 		Text: result.Text, Provider: result.Provider, Model: result.Model, Version: result.Version, GeneratedAt: result.GeneratedAt,
 	}, &model.SummaryCache{
 		URLHash: urlHash, CanonicalURL: canonicalURL, SummaryText: result.Text,
