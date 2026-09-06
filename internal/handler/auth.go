@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
+	"unicode"
 
 	"github.com/drywaters/learnd/internal/ui/pages"
 )
@@ -84,12 +86,16 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // isValidRedirect checks that the redirect URL is safe (relative path only)
 func isValidRedirect(rawURL string) bool {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
+	if strings.ContainsAny(rawURL, "\\") || strings.IndexFunc(rawURL, unicode.IsControl) >= 0 {
 		return false
 	}
-	// Must be a relative path with no scheme or host (prevents open redirect)
-	return parsed.Scheme == "" && parsed.Host == "" && len(parsed.Path) > 0 && parsed.Path[0] == '/'
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.Opaque != "" {
+		return false
+	}
+	path := parsed.Path
+	return strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "//") &&
+		!strings.Contains(path, "\\") && strings.IndexFunc(path, unicode.IsControl) < 0
 }
 
 func sanitizeRedirectForLog(rawURL string) string {
