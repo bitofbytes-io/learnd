@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -237,7 +239,7 @@ func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {
 // returns work to pending. Cleanup is bounded; lease expiry is the fallback.
 func (w *Worker) finishError(parent context.Context, kind repository.JobKind, claim *repository.JobClaim, cause error) {
 	status := model.StatusFailed
-	message := cause.Error()
+	message := jobErrorMessage(cause)
 	var errorMessage *string = &message
 	if parent.Err() != nil {
 		status = model.StatusPending
@@ -264,6 +266,28 @@ func (w *Worker) saved(parent context.Context, kind repository.JobKind, claim *r
 	if parent.Err() != nil {
 		w.finishError(parent, kind, claim, err)
 	}
+}
+
+// jobErrorMessage returns error text that is safe to persist and display.
+// A *url.Error embeds the full request URL, which may carry credentials in its
+// query string or userinfo, so that URL is reduced to scheme, host, and path.
+func jobErrorMessage(cause error) string {
+	message := cause.Error()
+	var urlErr *url.Error
+	if errors.As(cause, &urlErr) && urlErr.URL != "" {
+		redacted := redactURL(urlErr.URL)
+		message = strings.ReplaceAll(message, fmt.Sprintf("%q", urlErr.URL), fmt.Sprintf("%q", redacted))
+		message = strings.ReplaceAll(message, urlErr.URL, redacted)
+	}
+	return message
+}
+
+func redactURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "[redacted URL]"
+	}
+	return (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: parsed.Path}).String()
 }
 
 // sanitizeUTF8 removes invalid UTF-8 byte sequences from a string.

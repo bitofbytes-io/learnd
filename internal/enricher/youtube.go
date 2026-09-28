@@ -3,6 +3,7 @@ package enricher
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -18,17 +19,21 @@ var youtubePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})`),
 }
 
+const youtubeVideosEndpoint = "https://www.googleapis.com/youtube/v3/videos"
+
 // YouTubeEnricher extracts metadata from YouTube videos using the Data API v3
 type YouTubeEnricher struct {
-	apiKey string
-	client *http.Client
+	apiKey   string
+	endpoint string
+	client   *http.Client
 }
 
 // NewYouTubeEnricher creates a new YouTube enricher
 func NewYouTubeEnricher(apiKey string) *YouTubeEnricher {
 	return &YouTubeEnricher{
-		apiKey: apiKey,
-		client: newSafeHTTPClient(10*time.Second, "www.googleapis.com"),
+		apiKey:   apiKey,
+		endpoint: youtubeVideosEndpoint,
+		client:   newSafeHTTPClient(10*time.Second, "www.googleapis.com"),
 	}
 }
 
@@ -45,20 +50,22 @@ func (e *YouTubeEnricher) Enrich(ctx context.Context, rawURL string) (*Result, e
 		return nil, fmt.Errorf("could not extract video ID from URL")
 	}
 
-	// Build API request
-	apiURL := fmt.Sprintf(
-		"https://www.googleapis.com/youtube/v3/videos?id=%s&part=snippet,contentDetails&key=%s",
-		url.QueryEscape(videoID),
-		url.QueryEscape(e.apiKey),
-	)
+	// Build API request. The key travels in a header so it never appears in
+	// the request URL, which transport errors echo back.
+	apiURL := fmt.Sprintf("%s?id=%s&part=snippet,contentDetails", e.endpoint, url.QueryEscape(videoID))
 
 	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	req.Header.Set("X-Goog-Api-Key", e.apiKey)
 
 	resp, err := e.client.Do(req)
 	if err != nil {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
 		return nil, fmt.Errorf("failed to fetch YouTube API: %w", err)
 	}
 	defer resp.Body.Close()
