@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/drywaters/learnd/internal/model"
 	"golang.org/x/net/html"
+	"golang.org/x/net/publicsuffix"
 )
 
 const readingWordsPerMinute = 200
@@ -74,7 +77,7 @@ func (e *WebEnricher) Enrich(ctx context.Context, rawURL string) (*Result, error
 	}
 
 	// Extract metadata from HTML
-	extractMetadata(doc, result)
+	extractMetadata(doc, resp.Request.URL, result)
 
 	if result.RuntimeSeconds == nil && shouldEstimateReadTime(result.SourceType) {
 		seconds, words := estimateReadingTimeSeconds(doc)
@@ -89,7 +92,8 @@ func (e *WebEnricher) Enrich(ctx context.Context, rawURL string) (*Result, error
 }
 
 // extractMetadata walks the HTML tree and extracts title, description, etc.
-func extractMetadata(n *html.Node, result *Result) {
+// pageURL is the final fetched URL, used to resolve and vet the canonical link.
+func extractMetadata(n *html.Node, pageURL *url.URL, result *Result) {
 	if n.Type == html.ElementNode {
 		switch n.Data {
 		case "title":
@@ -141,14 +145,55 @@ func extractMetadata(n *html.Node, result *Result) {
 				}
 			}
 			if rel == "canonical" && href != "" {
-				result.CanonicalURL = href
+				if canonical := resolveCanonicalURL(pageURL, href); canonical != "" {
+					result.CanonicalURL = canonical
+				}
 			}
 		}
 	}
 
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		extractMetadata(c, result)
+		extractMetadata(c, pageURL, result)
 	}
+}
+
+// resolveCanonicalURL resolves a <link rel=canonical> href against the fetched
+// page URL. The canonical URL keys the shared summary cache, so it is accepted
+// only as an absolute http(s) URL on the page's own registrable domain;
+// anything else returns "" and the fetched URL is kept.
+func resolveCanonicalURL(pageURL *url.URL, href string) string {
+	if pageURL == nil {
+		return ""
+	}
+	ref, err := url.Parse(strings.TrimSpace(href))
+	if err != nil {
+		return ""
+	}
+	resolved := pageURL.ResolveReference(ref)
+	if resolved.Scheme != "http" && resolved.Scheme != "https" {
+		return ""
+	}
+	if resolved.User != nil || resolved.Hostname() == "" {
+		return ""
+	}
+	if !sameRegistrableDomain(pageURL.Hostname(), resolved.Hostname()) {
+		return ""
+	}
+	return resolved.String()
+}
+
+func sameRegistrableDomain(a, b string) bool {
+	a = strings.ToLower(strings.TrimSuffix(a, "."))
+	b = strings.ToLower(strings.TrimSuffix(b, "."))
+	if a == b {
+		return true
+	}
+	if net.ParseIP(a) != nil || net.ParseIP(b) != nil {
+		return false
+	}
+	domainA, errA := publicsuffix.EffectiveTLDPlusOne(a)
+	domainB, errB := publicsuffix.EffectiveTLDPlusOne(b)
+	return errA == nil && errB == nil && domainA == domainB
 }
 
 func shouldEstimateReadTime(sourceType model.SourceType) bool {

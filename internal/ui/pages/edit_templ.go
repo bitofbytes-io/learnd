@@ -417,7 +417,7 @@ func editScript() templ.Component {
 			templ_7745c5c3_Var20 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<script>\n\t\tconst editForm = document.querySelector('form[hx-put]');\n\t\tif (editForm) {\n\t\t\teditForm.addEventListener('htmx:afterRequest', function(evt) {\n\t\t\t\tif (evt.detail.elt === editForm && evt.detail.successful) {\n\t\t\t\t\twindow.location.href = editForm.dataset.returnTo || '/';\n\t\t\t\t}\n\t\t\t});\n\t\t}\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<script>\n\t\t// Scoped so hx-boost can re-run this script on each visit without\n\t\t// redeclaring editForm; each visit binds to that page's new form.\n\t\t(function () {\n\t\t\tconst editForm = document.querySelector('form[hx-put]');\n\t\t\tif (editForm) {\n\t\t\t\teditForm.addEventListener('htmx:afterRequest', function(evt) {\n\t\t\t\t\tif (evt.detail.elt === editForm && evt.detail.successful) {\n\t\t\t\t\t\twindow.location.href = editForm.dataset.returnTo || '/';\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t}\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

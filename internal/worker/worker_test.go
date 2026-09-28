@@ -1,6 +1,12 @@
 package worker
 
-import "testing"
+import (
+	"errors"
+	"fmt"
+	"net/url"
+	"strings"
+	"testing"
+)
 
 func TestSanitizeUTF8(t *testing.T) {
 	tests := []struct {
@@ -57,5 +63,31 @@ func TestSanitizeUTF8(t *testing.T) {
 				t.Errorf("sanitizeUTF8(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestJobErrorMessageRedactsRequestURL(t *testing.T) {
+	cause := fmt.Errorf("failed to fetch: %w", &url.Error{
+		Op:  "Get",
+		URL: "https://user:pass@www.googleapis.com/youtube/v3/videos?id=abc&key=secret-key",
+		Err: errors.New("connection reset"),
+	})
+
+	got := jobErrorMessage(cause)
+
+	for _, leaked := range []string{"secret-key", "pass", "id=abc"} {
+		if strings.Contains(got, leaked) {
+			t.Fatalf("jobErrorMessage() = %q, leaks %q", got, leaked)
+		}
+	}
+	want := `failed to fetch: Get "https://www.googleapis.com/youtube/v3/videos": connection reset`
+	if got != want {
+		t.Fatalf("jobErrorMessage() = %q, want %q", got, want)
+	}
+}
+
+func TestJobErrorMessageKeepsPlainErrors(t *testing.T) {
+	if got := jobErrorMessage(errors.New("YouTube API error: 403")); got != "YouTube API error: 403" {
+		t.Fatalf("jobErrorMessage() = %q", got)
 	}
 }

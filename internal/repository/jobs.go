@@ -89,16 +89,27 @@ func (r *EntryRepository) FinishJob(ctx context.Context, kind JobKind, claim *Jo
 	return nil
 }
 
+// CompleteEnrichment saves an enrichment result for the current lease. Title,
+// description, and source type are user-editable, so each is written only if
+// it still equals the value captured at claim time (no edit since the claim)
+// and that value was empty (or the default source type). Any edit made while
+// the job ran, including clearing a field or choosing "other", is kept, as is a
+// value already on the entry when it was claimed. The row lock makes this check
+// see any edit that committed before the save.
 func (r *EntryRepository) CompleteEnrichment(ctx context.Context, claim *JobClaim, result *EnrichmentResult) error {
 	command, err := r.pool.Exec(ctx, `UPDATE entries
- SET canonical_url = $3, domain = $4, source_type = $5, title = $6, description = $7,
+ SET canonical_url = $3, domain = $4,
+ source_type = CASE WHEN source_type = $11::text AND $11::text = 'other' THEN $5 ELSE source_type END,
+ title = CASE WHEN title IS NOT DISTINCT FROM $12::text AND COALESCE($12::text, '') = '' THEN $6 ELSE title END,
+ description = CASE WHEN description IS NOT DISTINCT FROM $13::text AND COALESCE($13::text, '') = '' THEN $7 ELSE description END,
  published_at = $8, runtime_seconds = $9, metadata_json = $10,
  enrichment_status = 'ok', enrichment_error = NULL, enriched_at = NOW(),
  enrichment_claim_token = NULL, enrichment_lease_expires_at = NULL
  WHERE id = $1 AND enrichment_status = 'processing' AND enrichment_claim_token = $2
  AND enrichment_lease_expires_at > clock_timestamp()`, claim.Entry.ID, claim.Token,
 		result.CanonicalURL, result.Domain, result.SourceType, result.Title, result.Description,
-		result.PublishedAt, result.RuntimeSeconds, result.MetadataJSON)
+		result.PublishedAt, result.RuntimeSeconds, result.MetadataJSON,
+		claim.Entry.SourceType, claim.Entry.Title, claim.Entry.Description)
 	if err != nil {
 		return fmt.Errorf("complete enrichment: %w", err)
 	}

@@ -2,6 +2,7 @@ package enricher
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -90,4 +91,51 @@ func buildWords(count int) string {
 		return ""
 	}
 	return strings.TrimSpace(strings.Repeat("word ", count))
+}
+
+func TestExtractMetadataCanonicalURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		pageURL string
+		href    string
+		want    string
+	}{
+		{"relative path", "https://www.example.com/articles/1?ref=x", "/articles/one", "https://www.example.com/articles/one"},
+		{"absolute same host", "https://www.example.com/a", "https://www.example.com/b", "https://www.example.com/b"},
+		{"sibling host same registrable domain", "https://www.example.com/a", "https://example.com/a", "https://example.com/a"},
+		{"scheme-relative same host", "https://www.example.com/a", "//www.example.com/b", "https://www.example.com/b"},
+		{"http to https upgrade", "http://www.example.com/a", "https://www.example.com/a", "https://www.example.com/a"},
+		{"other domain", "https://www.example.com/a", "https://attacker.test/a", "https://www.example.com/a"},
+		{"scheme-relative other domain", "https://www.example.com/a", "//attacker.test/a", "https://www.example.com/a"},
+		{"shared public suffix", "https://alice.github.io/post", "https://bob.github.io/post", "https://alice.github.io/post"},
+		{"javascript scheme", "https://www.example.com/a", "javascript:alert(1)", "https://www.example.com/a"},
+		{"non-http scheme", "https://www.example.com/a", "ftp://www.example.com/a", "https://www.example.com/a"},
+		{"userinfo", "https://www.example.com/a", "https://user:pass@www.example.com/a", "https://www.example.com/a"},
+		{"unparseable", "https://www.example.com/a", "http://[::1", "https://www.example.com/a"},
+		{"different IP host", "https://203.0.113.10/a", "https://203.0.113.11/a", "https://203.0.113.10/a"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pageURL, err := url.Parse(tt.pageURL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc, err := html.Parse(strings.NewReader(fmt.Sprintf(
+				`<html><head><title>Page</title><link rel="canonical" href=%q></head><body></body></html>`, tt.href)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := &Result{CanonicalURL: pageURL.String(), Metadata: map[string]interface{}{}}
+
+			extractMetadata(doc, pageURL, result)
+
+			if result.CanonicalURL != tt.want {
+				t.Fatalf("CanonicalURL = %q, want %q", result.CanonicalURL, tt.want)
+			}
+			if result.Title != "Page" {
+				t.Fatalf("Title = %q, want %q", result.Title, "Page")
+			}
+		})
+	}
 }

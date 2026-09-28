@@ -328,7 +328,7 @@ func keyboardSubmitScript() templ.Component {
 			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<script>\n\t\tdocument.addEventListener('keydown', function(e) {\n\t\t\tif (e.shiftKey && e.key === 'Enter') {\n\t\t\t\te.preventDefault();\n\t\t\t\tconst form = document.getElementById('capture-form');\n\t\t\t\tif (form) {\n\t\t\t\t\thtmx.trigger(form, 'submit');\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<script>\n\t\t// hx-boost re-runs this script on each visit; bind the document listener once.\n\t\t(function () {\n\t\t\tif (window.__captureKeyboardSubmitInitialized) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__captureKeyboardSubmitInitialized = true;\n\n\t\t\tdocument.addEventListener('keydown', function(e) {\n\t\t\t\tif (e.shiftKey && e.key === 'Enter') {\n\t\t\t\t\tconst form = document.getElementById('capture-form');\n\t\t\t\t\tif (form) {\n\t\t\t\t\t\te.preventDefault();\n\t\t\t\t\t\thtmx.trigger(form, 'submit');\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t});\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

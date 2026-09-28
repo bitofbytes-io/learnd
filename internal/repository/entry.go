@@ -142,19 +142,35 @@ func (r *EntryRepository) List(ctx context.Context, opts ListOptions) ([]model.E
 	return scanEntries(rows)
 }
 
-// Update updates an entry's user-editable fields
+// Update updates an entry's user-editable fields. Enrichment keeps running
+// after an edit; CompleteEnrichment only fills fields that are still empty, so
+// it cannot overwrite the user's title, description, or source type. Changing
+// the summary text while a summary job is queued or running supersedes that job:
+// it is marked ok with the generated-summary provenance cleared, and its claim
+// is revoked so a late completion fails with ErrClaimLost. summary_force_refresh
+// is left as is so an outstanding refresh stays recoverable (see
+// docs/worker-rollout.md).
 func (r *EntryRepository) Update(ctx context.Context, id uuid.UUID, input *model.UpdateEntryInput) (*model.Entry, error) {
-	query := `
+	const summarySuperseded = `summary_status IN ('pending', 'processing') AND summary_text IS DISTINCT FROM $8`
+	query := fmt.Sprintf(`
 		UPDATE entries
 		SET tag = $2, time_spent_seconds = $3, quantity = $4, notes = $5,
 		    title = $6, description = $7, summary_text = $8, source_type = $9,
-		    updated_at = NOW()
+		    updated_at = NOW(),
+		    summary_status = CASE WHEN %[1]s THEN 'ok' ELSE summary_status END,
+		    summary_error = CASE WHEN %[1]s THEN NULL ELSE summary_error END,
+		    summary_provider = CASE WHEN %[1]s THEN NULL ELSE summary_provider END,
+		    summary_model = CASE WHEN %[1]s THEN NULL ELSE summary_model END,
+		    summary_version = CASE WHEN %[1]s THEN NULL ELSE summary_version END,
+		    summary_generated_at = CASE WHEN %[1]s THEN NULL ELSE summary_generated_at END,
+		    summary_claim_token = CASE WHEN %[1]s THEN NULL ELSE summary_claim_token END,
+		    summary_lease_expires_at = CASE WHEN %[1]s THEN NULL ELSE summary_lease_expires_at END
 		WHERE id = $1
 		RETURNING id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
 		          canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
 		          enrichment_status, enrichment_error, enriched_at,
 		          summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at
-	`
+	`, summarySuperseded)
 
 	var entry model.Entry
 	err := r.pool.QueryRow(ctx, query, id, input.Tag, input.TimeSpentSeconds, input.Quantity, input.Notes,

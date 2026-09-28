@@ -191,14 +191,22 @@ templ paginationControls(pagination ui.PaginationView) {
 
 templ keyboardSubmitScript() {
 	<script>
-		document.addEventListener('keydown', function(e) {
-			if (e.shiftKey && e.key === 'Enter') {
-				e.preventDefault();
-				const form = document.getElementById('capture-form');
-				if (form) {
-					htmx.trigger(form, 'submit');
-				}
+		// hx-boost re-runs this script on each visit; bind the document listener once.
+		(function () {
+			if (window.__captureKeyboardSubmitInitialized) {
+				return;
 			}
-		});
+			window.__captureKeyboardSubmitInitialized = true;
+
+			document.addEventListener('keydown', function(e) {
+				if (e.shiftKey && e.key === 'Enter') {
+					const form = document.getElementById('capture-form');
+					if (form) {
+						e.preventDefault();
+						htmx.trigger(form, 'submit');
+					}
+				}
+			});
+		})();
 	</script>
 }

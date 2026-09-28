@@ -263,14 +263,18 @@ templ EditPage(entry ui.EntryView, returnTo string) {
 
 templ editScript() {
 	<script>
-		const editForm = document.querySelector('form[hx-put]');
-		if (editForm) {
-			editForm.addEventListener('htmx:afterRequest', function(evt) {
-				if (evt.detail.elt === editForm && evt.detail.successful) {
-					window.location.href = editForm.dataset.returnTo || '/';
-				}
-			});
-		}
+		// Scoped so hx-boost can re-run this script on each visit without
+		// redeclaring editForm; each visit binds to that page's new form.
+		(function () {
+			const editForm = document.querySelector('form[hx-put]');
+			if (editForm) {
+				editForm.addEventListener('htmx:afterRequest', function(evt) {
+					if (evt.detail.elt === editForm && evt.detail.successful) {
+						window.location.href = editForm.dataset.returnTo || '/';
+					}
+				});
+			}
+		})();
 	</script>
 }
 
