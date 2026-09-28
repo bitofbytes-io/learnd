@@ -41,3 +41,14 @@ func TestYouTubeEnrichTransportErrorOmitsAPIKey(t *testing.T) {
 		t.Fatalf("query string contains API key: %q", gotQuery)
 	}
 }
+
+func TestYouTubeClientRejectsNonHTTPSRedirect(t *testing.T) {
+	e := NewYouTubeEnricher("secret-youtube-key")
+	req, err := http.NewRequest(http.MethodGet, "http://www.googleapis.com/youtube/v3/videos?id=x", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.client.CheckRedirect(req, nil); err == nil {
+		t.Fatal("CheckRedirect() allowed a redirect to plain HTTP")
+	}
+}

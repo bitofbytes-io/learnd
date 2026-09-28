@@ -30,10 +30,20 @@ type YouTubeEnricher struct {
 
 // NewYouTubeEnricher creates a new YouTube enricher
 func NewYouTubeEnricher(apiKey string) *YouTubeEnricher {
+	client := newSafeHTTPClient(10*time.Second, "www.googleapis.com")
+	// Redirects keep custom headers, so refuse any hop that would send the
+	// X-Goog-Api-Key header over plaintext.
+	checkRedirect := client.CheckRedirect
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if !strings.EqualFold(req.URL.Scheme, "https") {
+			return fmt.Errorf("redirect to non-HTTPS URL")
+		}
+		return checkRedirect(req, via)
+	}
 	return &YouTubeEnricher{
 		apiKey:   apiKey,
 		endpoint: youtubeVideosEndpoint,
-		client:   newSafeHTTPClient(10*time.Second, "www.googleapis.com"),
+		client:   client,
 	}
 }
 
