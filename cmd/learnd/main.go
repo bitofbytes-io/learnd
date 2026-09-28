@@ -91,11 +91,11 @@ func run() error {
 	// Initialize summarizer
 	var sum summarizer.Summarizer
 	if cfg.GeminiAPIKey != "" {
-		var err error
-		sum, err = summarizer.NewGeminiSummarizerWithModel(ctx, cfg.GeminiAPIKey, cfg.GeminiModel)
+		gemini, err := summarizer.NewGeminiSummarizerWithModel(ctx, cfg.GeminiAPIKey, cfg.GeminiModel)
 		if err != nil {
 			slog.Warn("failed to initialize Gemini summarizer", "error", err)
 		} else {
+			sum = gemini
 			slog.Info("Gemini summarizer enabled", "model", sum.Model())
 		}
 	} else {
@@ -110,7 +110,7 @@ func run() error {
 	bgWorker.Start(ctx)
 
 	// Create server
-	srv := server.New(cfg, entryRepo, summaryCacheRepo)
+	srv := server.New(cfg, entryRepo, summaryCacheRepo, sum != nil)
 
 	// Start HTTP server
 	httpServer := &http.Server{

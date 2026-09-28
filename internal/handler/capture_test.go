@@ -31,7 +31,7 @@ func TestCapturePageUsesPageOffsetAndRendersPagination(t *testing.T) {
 		},
 	}
 
-	handler := NewCaptureHandler(mock)
+	handler := NewCaptureHandler(mock, false)
 	req := httptest.NewRequest(http.MethodGet, "/?page=2&url=https://prefill.test", nil)
 	rec := httptest.NewRecorder()
 
@@ -75,7 +75,7 @@ func TestCapturePagePaginationRequestRendersEntriesRegionOnly(t *testing.T) {
 		},
 	}
 
-	handler := NewCaptureHandler(mock)
+	handler := NewCaptureHandler(mock, false)
 	req := httptest.NewRequest(http.MethodGet, "/?page=2", nil)
 	req.Header.Set("HX-Request", "true")
 	req.Header.Set("HX-Target", "dashboard-entries-region")
@@ -108,7 +108,7 @@ func TestCapturePageBoostedNavigationStillRendersFullPage(t *testing.T) {
 		},
 	}
 
-	handler := NewCaptureHandler(mock)
+	handler := NewCaptureHandler(mock, false)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("HX-Request", "true")
 	req.Header.Set("HX-Boosted", "true")
@@ -140,7 +140,7 @@ func TestCapturePageClampsInvalidAndOutOfRangePages(t *testing.T) {
 			},
 		}
 
-		handler := NewCaptureHandler(mock)
+		handler := NewCaptureHandler(mock, false)
 		req := httptest.NewRequest(http.MethodGet, "/?page=nope", nil)
 		rec := httptest.NewRecorder()
 		handler.CapturePage(rec, req)
@@ -175,7 +175,7 @@ func TestCapturePageClampsInvalidAndOutOfRangePages(t *testing.T) {
 			},
 		}
 
-		handler := NewCaptureHandler(mock)
+		handler := NewCaptureHandler(mock, false)
 		req := httptest.NewRequest(http.MethodGet, "/?page=999", nil)
 		rec := httptest.NewRecorder()
 		handler.CapturePage(rec, req)
@@ -212,7 +212,7 @@ func TestCapturePageClampsInvalidAndOutOfRangePages(t *testing.T) {
 			},
 		}
 
-		handler := NewCaptureHandler(mock)
+		handler := NewCaptureHandler(mock, false)
 		req := httptest.NewRequest(http.MethodGet, "/?page="+strconv.FormatInt(int64(math.MaxInt), 10), nil)
 		rec := httptest.NewRecorder()
 		handler.CapturePage(rec, req)

@@ -12,6 +12,9 @@ type EntryView struct {
 	EditURL        string
 	SourceHref     string
 	HasSourceHref  bool
+	// SummaryEnabled reports whether a summarizer is configured; without one,
+	// pending summaries never progress and must not keep the row polling.
+	SummaryEnabled bool
 }
 
 // PaginationView describes a paginated dashboard state.

@@ -9,10 +9,13 @@ import (
 )
 
 func needsPolling(entry ui.EntryView) bool {
-	return entry.EnrichmentStatus == model.StatusPending ||
-		entry.EnrichmentStatus == model.StatusProcessing ||
-		entry.SummaryStatus == model.StatusPending ||
-		entry.SummaryStatus == model.StatusProcessing
+	if entry.EnrichmentStatus == model.StatusPending || entry.EnrichmentStatus == model.StatusProcessing {
+		return true
+	}
+	// Summaries are only claimed after successful enrichment and only when a
+	// summarizer is configured; otherwise they stay pending indefinitely.
+	return entry.SummaryEnabled && entry.EnrichmentStatus == model.StatusOK &&
+		(entry.SummaryStatus == model.StatusPending || entry.SummaryStatus == model.StatusProcessing)
 }
 
 func safeString(s *string) string {

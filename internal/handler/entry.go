@@ -24,13 +24,15 @@ import (
 
 // EntryHandler handles entry CRUD operations
 type EntryHandler struct {
-	entryRepo EntryRepo
+	entryRepo      EntryRepo
+	summaryEnabled bool
 }
 
 // NewEntryHandler creates a new EntryHandler
-func NewEntryHandler(entryRepo EntryRepo) *EntryHandler {
+func NewEntryHandler(entryRepo EntryRepo, summaryEnabled bool) *EntryHandler {
 	return &EntryHandler{
-		entryRepo: entryRepo,
+		entryRepo:      entryRepo,
+		summaryEnabled: summaryEnabled,
 	}
 }
 
@@ -113,7 +115,7 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Render entry row
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount)
+	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
 	partials.EntryRow(entryView).Render(ctx, w)
 
 	if duplicateCount > 1 {
@@ -123,7 +125,7 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 				if duplicate.ID == entry.ID {
 					continue
 				}
-				duplicateView := buildEntryView(&duplicate, duplicateCount)
+				duplicateView := buildEntryView(&duplicate, duplicateCount, h.summaryEnabled)
 				duplicateView.SwapOOB = true
 				partials.EntryRow(duplicateView).Render(ctx, w)
 			}
@@ -229,7 +231,7 @@ func (h *EntryHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount)
+	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
 	returnTo := sanitizeReturnTo(r.URL.Query().Get("return_to"))
 	entryView.EditURL = entryEditURL(entry.ID.String(), returnTo)
 	pages.EditPage(entryView, returnTo).Render(ctx, w)
@@ -293,7 +295,7 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	h.htmxToast(w, "Entry updated", &entry.ID, "")
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount)
+	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
 	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
@@ -356,7 +358,7 @@ func (h *EntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		if err == nil && len(duplicates) > 0 {
 			duplicateCount := len(duplicates)
 			for _, duplicate := range duplicates {
-				duplicateView := buildEntryView(&duplicate, duplicateCount)
+				duplicateView := buildEntryView(&duplicate, duplicateCount, h.summaryEnabled)
 				duplicateView.SwapOOB = true
 				partials.EntryRow(duplicateView).Render(ctx, w)
 			}
@@ -391,7 +393,7 @@ func (h *EntryHandler) RefreshEnrichment(w http.ResponseWriter, r *http.Request)
 	h.htmxToast(w, "Enrichment queued", &id, "")
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount)
+	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
 	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
@@ -423,7 +425,7 @@ func (h *EntryHandler) RefreshSummary(w http.ResponseWriter, r *http.Request) {
 	h.htmxToast(w, "Summary queued", &id, "")
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount)
+	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
 	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }
@@ -446,7 +448,7 @@ func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
 	}
 
 	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount)
+	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
 	stampDashboardEntryViewFromRequest(r, &entryView)
 	partials.EntryRow(entryView).Render(ctx, w)
 }

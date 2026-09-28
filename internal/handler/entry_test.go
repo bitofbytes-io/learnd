@@ -386,7 +386,7 @@ func TestBuildEntryViewMarksSafeSourceLinks(t *testing.T) {
 	entry := createTestEntry(uuid.New())
 	entry.SourceURL = "https://Example.com/path"
 
-	view := buildEntryView(entry, 1)
+	view := buildEntryView(entry, 1, false)
 
 	if !view.HasSourceHref || view.SourceHref != "https://example.com/path" {
 		t.Fatalf("SourceHref = %q/%t, want safe link", view.SourceHref, view.HasSourceHref)
@@ -397,7 +397,7 @@ func TestBuildEntryViewLeavesUnsafeLegacyURLAsText(t *testing.T) {
 	entry := createTestEntry(uuid.New())
 	entry.SourceURL = "javascript:alert(1)"
 
-	view := buildEntryView(entry, 1)
+	view := buildEntryView(entry, 1, false)
 
 	if view.HasSourceHref || view.SourceHref != "" {
 		t.Fatalf("SourceHref = %q/%t, want no safe link", view.SourceHref, view.HasSourceHref)
@@ -411,7 +411,7 @@ func TestCreateRejectsUnsafeSourceURL(t *testing.T) {
 			return nil, nil
 		},
 	}
-	handler := NewEntryHandler(mock)
+	handler := NewEntryHandler(mock, false)
 
 	form := url.Values{"url": {"http://127.0.0.1/private"}}
 	req := httptest.NewRequest(http.MethodPost, "/api/entries", strings.NewReader(form.Encode()))
@@ -440,7 +440,7 @@ func TestCreateStoresValidatedSourceURL(t *testing.T) {
 			return 1, nil
 		},
 	}
-	handler := NewEntryHandler(mock)
+	handler := NewEntryHandler(mock, false)
 
 	form := url.Values{"url": {"https://Example.com/path/?utm_source=x#section"}}
 	req := httptest.NewRequest(http.MethodPost, "/api/entries", strings.NewReader(form.Encode()))
@@ -603,7 +603,7 @@ func createTestEntry(id uuid.UUID) *model.Entry {
 
 // setupTestHandler creates a chi router with the entry handler for testing
 func setupTestHandler(repo EntryRepo) *chi.Mux {
-	handler := NewEntryHandler(repo)
+	handler := NewEntryHandler(repo, false)
 	r := chi.NewRouter()
 	r.Get("/entries/{id}/edit", handler.EditPage)
 	r.Put("/entries/{id}", handler.Update)

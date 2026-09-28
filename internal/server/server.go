@@ -16,14 +16,16 @@ type Server struct {
 	cfg              *config.Config
 	entryRepo        *repository.EntryRepository
 	summaryCacheRepo *repository.SummaryCacheRepository
+	summaryEnabled   bool
 }
 
 // New creates a new Server
-func New(cfg *config.Config, entryRepo *repository.EntryRepository, summaryCacheRepo *repository.SummaryCacheRepository) *Server {
+func New(cfg *config.Config, entryRepo *repository.EntryRepository, summaryCacheRepo *repository.SummaryCacheRepository, summaryEnabled bool) *Server {
 	return &Server{
 		cfg:              cfg,
 		entryRepo:        entryRepo,
 		summaryCacheRepo: summaryCacheRepo,
+		summaryEnabled:   summaryEnabled,
 	}
 }
 
@@ -72,11 +74,11 @@ func (s *Server) Router() http.Handler {
 		r.Use(middleware.Auth(s.cfg.APIToken, s.cfg.SecureCookies))
 
 		// Capture handler
-		captureHandler := handler.NewCaptureHandler(s.entryRepo)
+		captureHandler := handler.NewCaptureHandler(s.entryRepo, s.summaryEnabled)
 		r.Get("/", captureHandler.CapturePage)
 
 		// Entry API
-		entryHandler := handler.NewEntryHandler(s.entryRepo)
+		entryHandler := handler.NewEntryHandler(s.entryRepo, s.summaryEnabled)
 		r.Post("/api/entries", entryHandler.Create)
 		r.Get("/api/entries", entryHandler.List)
 		r.Get("/api/entries/{id}", entryHandler.Get)

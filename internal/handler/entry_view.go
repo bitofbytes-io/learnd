@@ -8,7 +8,7 @@ import (
 	"github.com/drywaters/learnd/internal/urlutil"
 )
 
-func buildEntryView(entry *model.Entry, duplicateCount int) ui.EntryView {
+func buildEntryView(entry *model.Entry, duplicateCount int, summaryEnabled bool) ui.EntryView {
 	sourceHref, hasSourceHref := urlutil.SafeLinkURL(entry.SourceURL)
 	return ui.EntryView{
 		Entry:          *entry,
@@ -16,6 +16,7 @@ func buildEntryView(entry *model.Entry, duplicateCount int) ui.EntryView {
 		SwapOOB:        false,
 		SourceHref:     sourceHref,
 		HasSourceHref:  hasSourceHref,
+		SummaryEnabled: summaryEnabled,
 	}
 }
 
@@ -33,7 +34,7 @@ func getDuplicateCount(ctx context.Context, repo EntryRepo, entry *model.Entry) 
 	return 1
 }
 
-func buildEntryViews(ctx context.Context, repo EntryRepo, entries []model.Entry) []ui.EntryView {
+func buildEntryViews(ctx context.Context, repo EntryRepo, entries []model.Entry, summaryEnabled bool) []ui.EntryView {
 	views := make([]ui.EntryView, 0, len(entries))
 	if len(entries) == 0 {
 		return views
@@ -77,6 +78,7 @@ func buildEntryViews(ctx context.Context, repo EntryRepo, entries []model.Entry)
 			SwapOOB:        false,
 			SourceHref:     sourceHref,
 			HasSourceHref:  hasSourceHref,
+			SummaryEnabled: summaryEnabled,
 		})
 	}
 

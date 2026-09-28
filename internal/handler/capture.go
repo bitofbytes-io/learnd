@@ -15,13 +15,15 @@ const dashboardPageSize = 20
 
 // CaptureHandler handles the main capture UI
 type CaptureHandler struct {
-	entryRepo EntryRepo
+	entryRepo      EntryRepo
+	summaryEnabled bool
 }
 
 // NewCaptureHandler creates a new CaptureHandler
-func NewCaptureHandler(entryRepo EntryRepo) *CaptureHandler {
+func NewCaptureHandler(entryRepo EntryRepo, summaryEnabled bool) *CaptureHandler {
 	return &CaptureHandler{
-		entryRepo: entryRepo,
+		entryRepo:      entryRepo,
+		summaryEnabled: summaryEnabled,
 	}
 }
 
@@ -50,7 +52,7 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entryViews := buildEntryViews(ctx, h.entryRepo, entries)
+	entryViews := buildEntryViews(ctx, h.entryRepo, entries, h.summaryEnabled)
 	stampDashboardEditURLs(entryViews, dashboardPagePath(page))
 	pagination := buildDashboardPagination(page, totalPages)
 
