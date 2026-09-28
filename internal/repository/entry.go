@@ -142,19 +142,35 @@ func (r *EntryRepository) List(ctx context.Context, opts ListOptions) ([]model.E
 	return scanEntries(rows)
 }
 
-// Update updates an entry's user-editable fields
+// Update updates an entry's user-editable fields. Changing fields that a queued
+// or running job would write supersedes that job: it is marked ok and its claim
+// revoked, so a late worker completion fails with ErrClaimLost instead of
+// overwriting the user's values. Edits that leave those fields unchanged keep
+// the job running.
 func (r *EntryRepository) Update(ctx context.Context, id uuid.UUID, input *model.UpdateEntryInput) (*model.Entry, error) {
-	query := `
+	const enrichmentSuperseded = `enrichment_status IN ('pending', 'processing') AND
+		    (title IS DISTINCT FROM $6 OR description IS DISTINCT FROM $7 OR source_type IS DISTINCT FROM $9)`
+	const summarySuperseded = `summary_status IN ('pending', 'processing') AND summary_text IS DISTINCT FROM $8`
+	query := fmt.Sprintf(`
 		UPDATE entries
 		SET tag = $2, time_spent_seconds = $3, quantity = $4, notes = $5,
 		    title = $6, description = $7, summary_text = $8, source_type = $9,
-		    updated_at = NOW()
+		    updated_at = NOW(),
+		    enrichment_status = CASE WHEN %[1]s THEN 'ok' ELSE enrichment_status END,
+		    enrichment_error = CASE WHEN %[1]s THEN NULL ELSE enrichment_error END,
+		    enrichment_claim_token = CASE WHEN %[1]s THEN NULL ELSE enrichment_claim_token END,
+		    enrichment_lease_expires_at = CASE WHEN %[1]s THEN NULL ELSE enrichment_lease_expires_at END,
+		    summary_status = CASE WHEN %[2]s THEN 'ok' ELSE summary_status END,
+		    summary_error = CASE WHEN %[2]s THEN NULL ELSE summary_error END,
+		    summary_force_refresh = CASE WHEN %[2]s THEN FALSE ELSE summary_force_refresh END,
+		    summary_claim_token = CASE WHEN %[2]s THEN NULL ELSE summary_claim_token END,
+		    summary_lease_expires_at = CASE WHEN %[2]s THEN NULL ELSE summary_lease_expires_at END
 		WHERE id = $1
 		RETURNING id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
 		          canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
 		          enrichment_status, enrichment_error, enriched_at,
 		          summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at
-	`
+	`, enrichmentSuperseded, summarySuperseded)
 
 	var entry model.Entry
 	err := r.pool.QueryRow(ctx, query, id, input.Tag, input.TimeSpentSeconds, input.Quantity, input.Notes,

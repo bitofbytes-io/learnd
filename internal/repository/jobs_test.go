@@ -240,3 +240,101 @@ func TestRefreshCacheFailureDoesNotRevokeClaim(t *testing.T) {
 		t.Fatalf("failed reset revoked claim: %v", err)
 	}
 }
+
+func updateInput(entry *model.Entry) *model.UpdateEntryInput {
+	return &model.UpdateEntryInput{
+		Tag: entry.Tag, TimeSpentSeconds: entry.TimeSpentSeconds, Quantity: entry.Quantity, Notes: entry.Notes,
+		Title: entry.Title, Description: entry.Description, SummaryText: entry.SummaryText, SourceType: &entry.SourceType,
+	}
+}
+
+func TestUserEditSupersedesOutstandingJobs(t *testing.T) {
+	ctx := context.Background()
+	userText := "Edited by user"
+	enrichment := &EnrichmentResult{CanonicalURL: "https://example.test/article", Domain: "example.test", SourceType: model.SourceTypeArticle, Title: "Worker title"}
+	summary := &SummaryResult{Text: "Worker summary", Provider: "fake", Model: "fake", Version: "1", GeneratedAt: time.Now()}
+
+	edit := func(t *testing.T, repo *EntryRepository, id uuid.UUID, change func(*model.UpdateEntryInput)) *model.Entry {
+		t.Helper()
+		entry, err := repo.GetByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		input := updateInput(entry)
+		change(input)
+		updated, err := repo.Update(ctx, id, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return updated
+	}
+
+	t.Run("processing enrichment", func(t *testing.T) {
+		pool := testdb.New(t)
+		repo := NewEntryRepository(pool)
+		id := seedJob(t, pool, false)
+		claim, err := repo.ClaimJob(ctx, EnrichmentJob)
+		if err != nil || claim == nil {
+			t.Fatalf("claim: %v %v", claim, err)
+		}
+		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Title = &userText })
+		if err := repo.CompleteEnrichment(ctx, claim, enrichment); !errors.Is(err, ErrClaimLost) {
+			t.Fatalf("completion after edit: %v", err)
+		}
+		entry, _ := repo.GetByID(ctx, id)
+		if entry.Title == nil || *entry.Title != userText || entry.EnrichmentStatus != model.StatusOK {
+			t.Fatalf("title=%v status=%s, want user title and ok", entry.Title, entry.EnrichmentStatus)
+		}
+	})
+
+	t.Run("pending enrichment", func(t *testing.T) {
+		pool := testdb.New(t)
+		repo := NewEntryRepository(pool)
+		id := seedJob(t, pool, false)
+		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Title = &userText })
+		if claim, err := repo.ClaimJob(ctx, EnrichmentJob); err != nil || claim != nil {
+			t.Fatalf("superseded enrichment was claimed: %v %v", claim, err)
+		}
+		entry, _ := repo.GetByID(ctx, id)
+		if entry.Title == nil || *entry.Title != userText || entry.EnrichmentStatus != model.StatusOK {
+			t.Fatalf("title=%v status=%s, want user title and ok", entry.Title, entry.EnrichmentStatus)
+		}
+	})
+
+	t.Run("processing summary", func(t *testing.T) {
+		pool := testdb.New(t)
+		repo := NewEntryRepository(pool)
+		id := seedJob(t, pool, true)
+		claim, err := repo.ClaimJob(ctx, SummaryJob)
+		if err != nil || claim == nil {
+			t.Fatalf("claim: %v %v", claim, err)
+		}
+		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.SummaryText = &userText })
+		if err := repo.CompleteSummary(ctx, claim, summary, nil); !errors.Is(err, ErrClaimLost) {
+			t.Fatalf("completion after edit: %v", err)
+		}
+		entry, _ := repo.GetByID(ctx, id)
+		if entry.SummaryText == nil || *entry.SummaryText != userText || entry.SummaryStatus != model.StatusOK {
+			t.Fatalf("summary=%v status=%s, want user summary and ok", entry.SummaryText, entry.SummaryStatus)
+		}
+	})
+
+	t.Run("unrelated edit keeps claims", func(t *testing.T) {
+		pool := testdb.New(t)
+		repo := NewEntryRepository(pool)
+		id := seedJob(t, pool, false)
+		claim, err := repo.ClaimJob(ctx, EnrichmentJob)
+		if err != nil || claim == nil {
+			t.Fatalf("claim: %v %v", claim, err)
+		}
+		notes := "just notes"
+		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Notes = &notes })
+		if err := repo.CompleteEnrichment(ctx, claim, enrichment); err != nil {
+			t.Fatalf("notes-only edit revoked claim: %v", err)
+		}
+		entry, _ := repo.GetByID(ctx, id)
+		if entry.Title == nil || *entry.Title != "Worker title" || entry.Notes == nil || *entry.Notes != notes {
+			t.Fatalf("title=%v notes=%v, want worker title and user notes", entry.Title, entry.Notes)
+		}
+	})
+}
