@@ -323,6 +323,33 @@ func TestUserEditsSurviveWorkerCompletion(t *testing.T) {
 		assertEnriched(t, repo, id)
 	})
 
+	t.Run("clearing fields while enrichment processing", func(t *testing.T) {
+		pool, repo, id := setup(t, false)
+		_, err := pool.Exec(ctx, `UPDATE entries SET title = 'Old title', description = 'Old description', source_type = 'youtube' WHERE id = $1`, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		claim, err := repo.ClaimJob(ctx, EnrichmentJob)
+		if err != nil || claim == nil {
+			t.Fatalf("claim: %v %v", claim, err)
+		}
+		other := model.SourceTypeOther
+		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Title = nil; in.SourceType = &other })
+		if err := repo.CompleteEnrichment(ctx, claim, enrichment); err != nil {
+			t.Fatal(err)
+		}
+		entry, _ := repo.GetByID(ctx, id)
+		if entry.Title != nil || entry.SourceType != model.SourceTypeOther {
+			t.Fatalf("title=%v type=%s, want cleared title and explicit other kept", entry.Title, entry.SourceType)
+		}
+		if entry.Description == nil || *entry.Description != "Old description" {
+			t.Fatalf("description=%v, want existing value kept", entry.Description)
+		}
+		if entry.Domain == nil || *entry.Domain != "example.test" {
+			t.Fatalf("domain=%v, want enrichment saved", entry.Domain)
+		}
+	})
+
 	t.Run("summary edit supersedes refresh", func(t *testing.T) {
 		pool, repo, id := setup(t, true)
 		_, err := pool.Exec(ctx, `UPDATE entries SET title = 'An article', summary_text = 'generated', summary_status = 'ok',
