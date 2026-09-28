@@ -125,14 +125,20 @@ func run() error {
 	shutdownChan := make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
 
+	serveErr := make(chan error, 1)
 	go func() {
 		slog.Info("server listening", "addr", httpServer.Addr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server error", "error", err)
+			serveErr <- err
 		}
 	}()
 
-	<-shutdownChan
+	select {
+	case err := <-serveErr:
+		bgWorker.Stop()
+		return fmt.Errorf("server error: %w", err)
+	case <-shutdownChan:
+	}
 	slog.Info("shutting down...")
 
 	// Stop background worker
