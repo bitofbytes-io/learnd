@@ -89,9 +89,16 @@ func (r *EntryRepository) FinishJob(ctx context.Context, kind JobKind, claim *Jo
 	return nil
 }
 
+// CompleteEnrichment saves an enrichment result for the current lease. Title,
+// description, and source type are user-editable, so they are only filled while
+// still empty (or the default source type); a value already on the entry is
+// user-provided and is kept. The row lock makes this check see any edit that
+// committed before the save.
 func (r *EntryRepository) CompleteEnrichment(ctx context.Context, claim *JobClaim, result *EnrichmentResult) error {
 	command, err := r.pool.Exec(ctx, `UPDATE entries
- SET canonical_url = $3, domain = $4, source_type = $5, title = $6, description = $7,
+ SET canonical_url = $3, domain = $4,
+ source_type = CASE WHEN source_type = 'other' THEN $5 ELSE source_type END,
+ title = COALESCE(NULLIF(title, ''), $6), description = COALESCE(NULLIF(description, ''), $7),
  published_at = $8, runtime_seconds = $9, metadata_json = $10,
  enrichment_status = 'ok', enrichment_error = NULL, enriched_at = NOW(),
  enrichment_claim_token = NULL, enrichment_lease_expires_at = NULL

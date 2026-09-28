@@ -302,8 +302,8 @@ func TestSuccessfulProviderResultHasSeparateSaveDeadline(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			status, result := entry.EnrichmentStatus, entry.Title
-			expected := "saved enrichment"
+			status, result := entry.EnrichmentStatus, entry.Domain
+			expected := "example.test"
 			if kind == repository.SummaryJob {
 				status, result, expected = entry.SummaryStatus, entry.SummaryText, "saved summary"
 			}

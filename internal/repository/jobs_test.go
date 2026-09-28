@@ -248,13 +248,26 @@ func updateInput(entry *model.Entry) *model.UpdateEntryInput {
 	}
 }
 
-func TestUserEditSupersedesOutstandingJobs(t *testing.T) {
+func TestUserEditsSurviveWorkerCompletion(t *testing.T) {
 	ctx := context.Background()
 	userText := "Edited by user"
-	enrichment := &EnrichmentResult{CanonicalURL: "https://example.test/article", Domain: "example.test", SourceType: model.SourceTypeArticle, Title: "Worker title"}
+	userType := model.SourceTypePodcast
+	enrichment := &EnrichmentResult{
+		CanonicalURL: "https://example.test/article", Domain: "example.test", SourceType: model.SourceTypeArticle,
+		Title: "Worker title", Description: "Worker description",
+	}
 	summary := &SummaryResult{Text: "Worker summary", Provider: "fake", Model: "fake", Version: "1", GeneratedAt: time.Now()}
 
-	edit := func(t *testing.T, repo *EntryRepository, id uuid.UUID, change func(*model.UpdateEntryInput)) *model.Entry {
+	setup := func(t *testing.T, ready bool) (*pgxpool.Pool, *EntryRepository, uuid.UUID) {
+		t.Helper()
+		pool := testdb.New(t)
+		id := seedJob(t, pool, ready)
+		if _, err := pool.Exec(ctx, `UPDATE entries SET title = NULL WHERE id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+		return pool, NewEntryRepository(pool), id
+	}
+	edit := func(t *testing.T, repo *EntryRepository, id uuid.UUID, change func(*model.UpdateEntryInput)) {
 		t.Helper()
 		entry, err := repo.GetByID(ctx, id)
 		if err != nil {
@@ -262,49 +275,64 @@ func TestUserEditSupersedesOutstandingJobs(t *testing.T) {
 		}
 		input := updateInput(entry)
 		change(input)
-		updated, err := repo.Update(ctx, id, input)
+		if _, err := repo.Update(ctx, id, input); err != nil {
+			t.Fatal(err)
+		}
+	}
+	editTitleAndType := func(in *model.UpdateEntryInput) { in.Title = &userText; in.SourceType = &userType }
+	assertEnriched := func(t *testing.T, repo *EntryRepository, id uuid.UUID) {
+		t.Helper()
+		entry, err := repo.GetByID(ctx, id)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return updated
+		if entry.EnrichmentStatus != model.StatusOK || entry.Domain == nil || *entry.Domain != "example.test" {
+			t.Fatalf("status=%s domain=%v, want enrichment saved", entry.EnrichmentStatus, entry.Domain)
+		}
+		if entry.Title == nil || *entry.Title != userText || entry.SourceType != userType {
+			t.Fatalf("title=%v type=%s, want user edits kept", entry.Title, entry.SourceType)
+		}
+		if entry.Description == nil || *entry.Description != "Worker description" {
+			t.Fatalf("description=%v, want unedited field filled", entry.Description)
+		}
 	}
 
-	t.Run("processing enrichment", func(t *testing.T) {
-		pool := testdb.New(t)
-		repo := NewEntryRepository(pool)
-		id := seedJob(t, pool, false)
+	t.Run("edit while enrichment pending", func(t *testing.T) {
+		_, repo, id := setup(t, false)
+		edit(t, repo, id, editTitleAndType)
+		claim, err := repo.ClaimJob(ctx, EnrichmentJob)
+		if err != nil || claim == nil {
+			t.Fatalf("edit stopped enrichment: %v %v", claim, err)
+		}
+		if err := repo.CompleteEnrichment(ctx, claim, enrichment); err != nil {
+			t.Fatal(err)
+		}
+		assertEnriched(t, repo, id)
+	})
+
+	t.Run("edit while enrichment processing", func(t *testing.T) {
+		_, repo, id := setup(t, false)
 		claim, err := repo.ClaimJob(ctx, EnrichmentJob)
 		if err != nil || claim == nil {
 			t.Fatalf("claim: %v %v", claim, err)
 		}
-		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Title = &userText })
-		if err := repo.CompleteEnrichment(ctx, claim, enrichment); !errors.Is(err, ErrClaimLost) {
-			t.Fatalf("completion after edit: %v", err)
+		edit(t, repo, id, editTitleAndType)
+		if err := repo.CompleteEnrichment(ctx, claim, enrichment); err != nil {
+			t.Fatal(err)
 		}
-		entry, _ := repo.GetByID(ctx, id)
-		if entry.Title == nil || *entry.Title != userText || entry.EnrichmentStatus != model.StatusOK {
-			t.Fatalf("title=%v status=%s, want user title and ok", entry.Title, entry.EnrichmentStatus)
-		}
+		assertEnriched(t, repo, id)
 	})
 
-	t.Run("pending enrichment", func(t *testing.T) {
-		pool := testdb.New(t)
-		repo := NewEntryRepository(pool)
-		id := seedJob(t, pool, false)
-		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Title = &userText })
-		if claim, err := repo.ClaimJob(ctx, EnrichmentJob); err != nil || claim != nil {
-			t.Fatalf("superseded enrichment was claimed: %v %v", claim, err)
+	t.Run("summary edit supersedes refresh", func(t *testing.T) {
+		pool, repo, id := setup(t, true)
+		_, err := pool.Exec(ctx, `UPDATE entries SET title = 'An article', summary_text = 'generated', summary_status = 'ok',
+ summary_provider = 'gemini', summary_model = 'm', summary_version = 'v', summary_generated_at = NOW() WHERE id = $1`, id)
+		if err != nil {
+			t.Fatal(err)
 		}
-		entry, _ := repo.GetByID(ctx, id)
-		if entry.Title == nil || *entry.Title != userText || entry.EnrichmentStatus != model.StatusOK {
-			t.Fatalf("title=%v status=%s, want user title and ok", entry.Title, entry.EnrichmentStatus)
+		if err := repo.ResetSummary(ctx, id); err != nil {
+			t.Fatal(err)
 		}
-	})
-
-	t.Run("processing summary", func(t *testing.T) {
-		pool := testdb.New(t)
-		repo := NewEntryRepository(pool)
-		id := seedJob(t, pool, true)
 		claim, err := repo.ClaimJob(ctx, SummaryJob)
 		if err != nil || claim == nil {
 			t.Fatalf("claim: %v %v", claim, err)
@@ -317,24 +345,32 @@ func TestUserEditSupersedesOutstandingJobs(t *testing.T) {
 		if entry.SummaryText == nil || *entry.SummaryText != userText || entry.SummaryStatus != model.StatusOK {
 			t.Fatalf("summary=%v status=%s, want user summary and ok", entry.SummaryText, entry.SummaryStatus)
 		}
+		if entry.SummaryProvider != nil || entry.SummaryModel != nil || entry.SummaryVersion != nil || entry.SummaryGeneratedAt != nil {
+			t.Fatal("stale generated-summary provenance kept on user summary")
+		}
+		var force bool
+		if err := pool.QueryRow(ctx, `SELECT summary_force_refresh FROM entries WHERE id = $1`, id).Scan(&force); err != nil || !force {
+			t.Fatalf("force refresh marker lost: %t %v", force, err)
+		}
 	})
 
-	t.Run("unrelated edit keeps claims", func(t *testing.T) {
-		pool := testdb.New(t)
-		repo := NewEntryRepository(pool)
-		id := seedJob(t, pool, false)
-		claim, err := repo.ClaimJob(ctx, EnrichmentJob)
+	t.Run("unrelated edit keeps summary claim", func(t *testing.T) {
+		pool, repo, id := setup(t, true)
+		if _, err := pool.Exec(ctx, `UPDATE entries SET title = 'An article' WHERE id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+		claim, err := repo.ClaimJob(ctx, SummaryJob)
 		if err != nil || claim == nil {
 			t.Fatalf("claim: %v %v", claim, err)
 		}
 		notes := "just notes"
 		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Notes = &notes })
-		if err := repo.CompleteEnrichment(ctx, claim, enrichment); err != nil {
+		if err := repo.CompleteSummary(ctx, claim, summary, nil); err != nil {
 			t.Fatalf("notes-only edit revoked claim: %v", err)
 		}
 		entry, _ := repo.GetByID(ctx, id)
-		if entry.Title == nil || *entry.Title != "Worker title" || entry.Notes == nil || *entry.Notes != notes {
-			t.Fatalf("title=%v notes=%v, want worker title and user notes", entry.Title, entry.Notes)
+		if entry.SummaryText == nil || *entry.SummaryText != summary.Text || entry.Notes == nil || *entry.Notes != notes {
+			t.Fatalf("summary=%v notes=%v, want worker summary and user notes", entry.SummaryText, entry.Notes)
 		}
 	})
 }
