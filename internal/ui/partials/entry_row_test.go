@@ -1,11 +1,38 @@
 package partials
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/ui"
+	"github.com/google/uuid"
 )
+
+func TestEntryRowPollsStatusOnlyWhileWorkIsPending(t *testing.T) {
+	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	render := func(enrichment model.ProcessingStatus) string {
+		t.Helper()
+		var b strings.Builder
+		view := ui.EntryView{Entry: model.Entry{ID: id, SourceURL: "https://example.test", EnrichmentStatus: enrichment, SummaryStatus: model.StatusOK}}
+		if err := EntryRow(view).Render(context.Background(), &b); err != nil {
+			t.Fatal(err)
+		}
+		return b.String()
+	}
+	poll := []string{`hx-get="/entries/` + id.String() + `/status"`, `hx-trigger="every 5s"`, `hx-swap="outerHTML"`}
+
+	pending := render(model.StatusPending)
+	for _, want := range poll {
+		if !strings.Contains(pending, want) {
+			t.Fatalf("pending row missing %s: %s", want, pending)
+		}
+	}
+	if done := render(model.StatusOK); strings.Contains(done, poll[1]) {
+		t.Fatalf("finished row still polls: %s", done)
+	}
+}
 
 func TestNeedsPolling(t *testing.T) {
 	tests := []struct {
