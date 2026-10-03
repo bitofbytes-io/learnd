@@ -70,8 +70,8 @@ func (w *Worker) Start(ctx context.Context) {
 
 	ctx, w.cancel = context.WithCancel(ctx)
 	w.wg.Add(2)
-	go w.runEnrichmentLoop(ctx)
-	go w.runSummarizationLoop(ctx)
+	go w.runLoop(ctx, repository.EnrichmentJob)
+	go w.runLoop(ctx, repository.SummaryJob)
 }
 
 // Stop gracefully stops the worker
@@ -84,7 +84,8 @@ func (w *Worker) Stop() {
 	slog.Info("background worker stopped")
 }
 
-func (w *Worker) runEnrichmentLoop(ctx context.Context) {
+// runLoop processes jobs of one kind on every tick until ctx is cancelled.
+func (w *Worker) runLoop(ctx context.Context, kind repository.JobKind) {
 	defer w.wg.Done()
 
 	ticker := time.NewTicker(w.interval)
@@ -95,40 +96,33 @@ func (w *Worker) runEnrichmentLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			w.processEnrichment(ctx)
-		}
-	}
-}
-
-func (w *Worker) runSummarizationLoop(ctx context.Context) {
-	defer w.wg.Done()
-
-	ticker := time.NewTicker(w.interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			w.processSummarization(ctx)
+			w.process(ctx, kind)
 		}
 	}
 }
 
 const jobTimeout = 2 * time.Minute
 
-func (w *Worker) processEnrichment(ctx context.Context) {
+// process claims and runs up to batchSize jobs of one kind. Summary jobs wait
+// while no summarizer is configured.
+func (w *Worker) process(ctx context.Context, kind repository.JobKind) {
+	run := w.enrich
+	if kind == repository.SummaryJob {
+		if w.summarizer == nil {
+			return
+		}
+		run = w.summarize
+	}
 	for i := 0; i < w.batchSize && ctx.Err() == nil; i++ {
-		claim, err := w.entryRepo.ClaimJob(ctx, repository.EnrichmentJob)
+		claim, err := w.entryRepo.ClaimJob(ctx, kind)
 		if err != nil {
-			slog.Error("claim enrichment", "error", err)
+			slog.Error("claim job", "kind", kind, "error", err)
 			return
 		}
 		if claim == nil {
 			return
 		}
-		w.enrich(ctx, claim)
+		run(ctx, claim)
 	}
 }
 
@@ -157,23 +151,6 @@ func (w *Worker) enrich(parent context.Context, claim *repository.JobClaim) {
 		PublishedAt: result.PublishedAt, RuntimeSeconds: result.RuntimeSeconds, MetadataJSON: metadata,
 	})
 	w.saved(parent, repository.EnrichmentJob, claim, err)
-}
-
-func (w *Worker) processSummarization(ctx context.Context) {
-	if w.summarizer == nil {
-		return
-	}
-	for i := 0; i < w.batchSize && ctx.Err() == nil; i++ {
-		claim, err := w.entryRepo.ClaimJob(ctx, repository.SummaryJob)
-		if err != nil {
-			slog.Error("claim summary", "error", err)
-			return
-		}
-		if claim == nil {
-			return
-		}
-		w.summarize(ctx, claim)
-	}
 }
 
 func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {

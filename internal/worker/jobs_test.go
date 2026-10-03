@@ -71,7 +71,7 @@ func TestConcurrentWorkersCallProviderOncePerEntry(t *testing.T) {
 	}}
 	var group sync.WaitGroup
 	for range 3 {
-		group.Go(func() { New(repo, cache, nil, provider, Config{}).processSummarization(context.Background()) })
+		group.Go(func() { New(repo, cache, nil, provider, Config{}).process(context.Background(), repository.SummaryJob) })
 	}
 	group.Wait()
 	if calls.Load() != 12 {
@@ -97,7 +97,7 @@ func TestRefreshDuringProviderCallDiscardsOldResult(t *testing.T) {
 	}}
 	oldWorker := New(repo, cache, nil, provider, Config{BatchSize: 1})
 	done := make(chan struct{})
-	go func() { defer close(done); oldWorker.processSummarization(context.Background()) }()
+	go func() { defer close(done); oldWorker.process(context.Background(), repository.SummaryJob) }()
 	select {
 	case <-started:
 	case <-time.After(5 * time.Second):
@@ -125,7 +125,7 @@ func TestRefreshDuringProviderCallDiscardsOldResult(t *testing.T) {
 		calls++
 		return &summarizer.Result{Text: "fresh", Provider: "fake", Model: "fake", Version: "2", GeneratedAt: time.Now()}, nil
 	}}
-	New(repo, cache, nil, fresh, Config{BatchSize: 1}).processSummarization(context.Background())
+	New(repo, cache, nil, fresh, Config{BatchSize: 1}).process(context.Background(), repository.SummaryJob)
 	entry, _ = repo.GetByID(context.Background(), id)
 	if calls != 1 || entry.SummaryText == nil || *entry.SummaryText != "fresh" {
 		t.Fatal("refresh did not bypass cache")
@@ -178,7 +178,7 @@ func TestProviderFailureRequiresRetryAndOptionalSummaryStaysPending(t *testing.T
 	repo := repository.NewEntryRepository(pool)
 	cache := repository.NewSummaryCacheRepository(pool)
 	id := createWorkerEntry(t, pool, true)
-	New(repo, cache, nil, nil, Config{}).processSummarization(context.Background())
+	New(repo, cache, nil, nil, Config{}).process(context.Background(), repository.SummaryJob)
 	entry, _ := repo.GetByID(context.Background(), id)
 	if entry.SummaryStatus != model.StatusPending {
 		t.Fatal("missing optional provider changed job")
@@ -189,8 +189,8 @@ func TestProviderFailureRequiresRetryAndOptionalSummaryStaysPending(t *testing.T
 		return nil, errors.New("provider failure")
 	}}
 	worker := New(repo, cache, nil, fake, Config{})
-	worker.processSummarization(context.Background())
-	worker.processSummarization(context.Background())
+	worker.process(context.Background(), repository.SummaryJob)
+	worker.process(context.Background(), repository.SummaryJob)
 	entry, _ = repo.GetByID(context.Background(), id)
 	if calls != 1 || entry.SummaryStatus != model.StatusFailed {
 		t.Fatalf("calls %d status %s", calls, entry.SummaryStatus)
@@ -216,10 +216,7 @@ func TestProcessingDeadlineDoesNotAutomaticallyRetry(t *testing.T) {
 			}}
 			worker := New(repo, repository.NewSummaryCacheRepository(pool), enricher.NewRegistry(enrich), summarize, Config{})
 			worker.processingTimeout = 50 * time.Millisecond
-			process := worker.processEnrichment
-			if kind == repository.SummaryJob {
-				process = worker.processSummarization
-			}
+			process := func(ctx context.Context) { worker.process(ctx, kind) }
 			// A live parent context distinguishes a job deadline from worker shutdown.
 			parent := context.Background()
 			process(parent)
@@ -289,10 +286,7 @@ func TestSuccessfulProviderResultHasSeparateSaveDeadline(t *testing.T) {
 			}}
 			worker := New(repo, repository.NewSummaryCacheRepository(pool), enricher.NewRegistry(enrich), summarize, Config{BatchSize: 1})
 			worker.processingTimeout = 500 * time.Millisecond
-			process := worker.processEnrichment
-			if kind == repository.SummaryJob {
-				process = worker.processSummarization
-			}
+			process := func(ctx context.Context) { worker.process(ctx, kind) }
 			process(context.Background())
 			if !time.Now().After(providerDeadline) {
 				t.Fatal("save did not extend beyond provider deadline")
