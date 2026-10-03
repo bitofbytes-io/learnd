@@ -171,3 +171,40 @@ func TestCreateRerendersExistingDuplicates(t *testing.T) {
 		t.Fatalf("Create() rendered %d OOB rows, want 1 (the older duplicate)", got)
 	}
 }
+
+// The edit page sends these with hx-swap="none", so they return only the toast.
+func TestEditPageActionsSkipRowRendering(t *testing.T) {
+	id := uuid.New()
+	var countCalls int
+	mock := &mockEntryRepo{
+		getByIDFn: func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) { return createTestEntry(reqID), nil },
+		updateFn: func(ctx context.Context, reqID uuid.UUID, input *model.UpdateEntryInput) (*model.Entry, error) {
+			return createTestEntry(reqID), nil
+		},
+		countByNormalizedURLFn: func(ctx context.Context, normalizedURL string) (int, error) { countCalls++; return 1, nil },
+	}
+	router := setupTestHandler(mock)
+
+	for _, tt := range []struct{ method, path, toast string }{
+		{http.MethodPut, "/entries/" + id.String(), "Entry updated"},
+		{http.MethodPost, "/entries/" + id.String() + "/refresh-summary", "Summary queued"},
+	} {
+		req := httptest.NewRequest(tt.method, tt.path, strings.NewReader("notes=x"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s %s status = %d", tt.method, tt.path, rec.Code)
+		}
+		if rec.Body.Len() != 0 {
+			t.Fatalf("%s %s body = %q, want empty", tt.method, tt.path, rec.Body.String())
+		}
+		if !strings.Contains(rec.Header().Get("HX-Trigger"), tt.toast) {
+			t.Fatalf("%s %s HX-Trigger = %q, want %q", tt.method, tt.path, rec.Header().Get("HX-Trigger"), tt.toast)
+		}
+	}
+	if countCalls != 0 {
+		t.Fatalf("CountByNormalizedURL called %d times, want 0", countCalls)
+	}
+}

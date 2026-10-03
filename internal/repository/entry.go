@@ -108,20 +108,41 @@ func (r *EntryRepository) List(ctx context.Context, opts ListOptions) ([]model.E
 	return scanEntries(rows)
 }
 
-// Update updates an entry's user-editable fields. Enrichment keeps running
-// after an edit; CompleteEnrichment only fills fields that are still empty, so
-// it cannot overwrite the user's title, description, or source type. Changing
-// the summary text while a summary job is queued or running supersedes that job:
-// it is marked ok with the generated-summary provenance cleared, and its claim
-// is revoked so a late completion fails with ErrClaimLost. summary_force_refresh
+// Update updates an entry's user-editable fields. Fields the input does not
+// Set keep their stored values. Enrichment keeps running after an edit;
+// CompleteEnrichment only fills fields that are still empty, so it cannot
+// overwrite the user's title, description, or source type. Changing the summary
+// text while a summary job is queued or running supersedes that job: it is
+// marked ok with the generated-summary provenance cleared, and its claim is
+// revoked so a late completion fails with ErrClaimLost. summary_force_refresh
 // is left as is so an outstanding refresh stays recoverable (see
 // docs/worker-rollout.md).
 func (r *EntryRepository) Update(ctx context.Context, id uuid.UUID, input *model.UpdateEntryInput) (*model.Entry, error) {
-	const summarySuperseded = `summary_status IN ('pending', 'processing') AND summary_text IS DISTINCT FROM $8`
+	// $10 names the columns the input sets.
+	set := []string{}
+	for _, field := range []struct {
+		column string
+		isSet  bool
+	}{
+		{"tag", input.Tag.Set}, {"time_spent_seconds", input.TimeSpentSeconds.Set}, {"quantity", input.Quantity.Set},
+		{"notes", input.Notes.Set}, {"title", input.Title.Set}, {"description", input.Description.Set},
+		{"summary_text", input.SummaryText.Set},
+	} {
+		if field.isSet {
+			set = append(set, field.column)
+		}
+	}
+	const summarySuperseded = `'summary_text' = ANY($10) AND summary_status IN ('pending', 'processing') AND summary_text IS DISTINCT FROM $8`
 	query := fmt.Sprintf(`
 		UPDATE entries
-		SET tag = $2, time_spent_seconds = $3, quantity = $4, notes = $5,
-		    title = $6, description = $7, summary_text = $8, source_type = $9,
+		SET tag = CASE WHEN 'tag' = ANY($10) THEN $2 ELSE tag END,
+		    time_spent_seconds = CASE WHEN 'time_spent_seconds' = ANY($10) THEN $3 ELSE time_spent_seconds END,
+		    quantity = CASE WHEN 'quantity' = ANY($10) THEN $4 ELSE quantity END,
+		    notes = CASE WHEN 'notes' = ANY($10) THEN $5 ELSE notes END,
+		    title = CASE WHEN 'title' = ANY($10) THEN $6 ELSE title END,
+		    description = CASE WHEN 'description' = ANY($10) THEN $7 ELSE description END,
+		    summary_text = CASE WHEN 'summary_text' = ANY($10) THEN $8 ELSE summary_text END,
+		    source_type = COALESCE($9, source_type),
 		    updated_at = NOW(),
 		    summary_status = CASE WHEN %[1]s THEN 'ok' ELSE summary_status END,
 		    summary_error = CASE WHEN %[1]s THEN NULL ELSE summary_error END,
@@ -134,8 +155,9 @@ func (r *EntryRepository) Update(ctx context.Context, id uuid.UUID, input *model
 		WHERE id = $1
 		RETURNING %[2]s`, summarySuperseded, entryColumns)
 
-	entry, err := scanEntry(r.pool.QueryRow(ctx, query, id, input.Tag, input.TimeSpentSeconds, input.Quantity, input.Notes,
-		input.Title, input.Description, input.SummaryText, input.SourceType))
+	entry, err := scanEntry(r.pool.QueryRow(ctx, query, id,
+		input.Tag.Value, input.TimeSpentSeconds.Value, input.Quantity.Value, input.Notes.Value,
+		input.Title.Value, input.Description.Value, input.SummaryText.Value, input.SourceType, set))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

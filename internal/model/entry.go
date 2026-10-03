@@ -35,12 +35,12 @@ type Entry struct {
 	UpdatedAt time.Time `json:"updated_at"`
 
 	// User input
-	SourceURL        string   `json:"source_url"`
-	NormalizedURL    string   `json:"normalized_url"`
-	Tag              *string  `json:"tag"`
-	TimeSpentSeconds *int     `json:"time_spent_seconds,omitempty"`
-	Quantity         *int     `json:"quantity,omitempty"`
-	Notes            *string  `json:"notes,omitempty"`
+	SourceURL        string  `json:"source_url"`
+	NormalizedURL    string  `json:"normalized_url"`
+	Tag              *string `json:"tag"`
+	TimeSpentSeconds *int    `json:"time_spent_seconds,omitempty"`
+	Quantity         *int    `json:"quantity,omitempty"`
+	Notes            *string `json:"notes,omitempty"`
 
 	// Enriched fields
 	CanonicalURL   *string    `json:"canonical_url,omitempty"`
@@ -77,17 +77,31 @@ type CreateEntryInput struct {
 	Notes            *string
 }
 
-// UpdateEntryInput represents input for updating an entry
+// Optional is an update value that is written only when Set is true, so a
+// request can leave a field unchanged or clear it with a nil Value.
+type Optional[T any] struct {
+	Value T
+	Set   bool
+}
+
+// Some returns an Optional that writes v.
+func Some[T any](v T) Optional[T] {
+	return Optional[T]{Value: v, Set: true}
+}
+
+// UpdateEntryInput represents input for updating an entry. Fields that are
+// not Set keep their stored values.
 type UpdateEntryInput struct {
-	Tag              *string
-	TimeSpentSeconds *int
-	Quantity         *int
-	Notes            *string
+	Tag              Optional[*string]
+	TimeSpentSeconds Optional[*int]
+	Quantity         Optional[*int]
+	Notes            Optional[*string]
 	// Editable enriched fields
-	Title       *string
-	Description *string
-	SummaryText *string
-	SourceType  *SourceType
+	Title       Optional[*string]
+	Description Optional[*string]
+	SummaryText Optional[*string]
+	// SourceType cannot be cleared; nil leaves it unchanged.
+	SourceType *SourceType
 }
 
 // SummaryCache represents a cached summary for a URL

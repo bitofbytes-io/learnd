@@ -737,19 +737,6 @@ func TestDashboardRowRerendersPreserveReturnTo(t *testing.T) {
 				}
 			},
 		},
-		{
-			name:   "refresh summary",
-			method: http.MethodPost,
-			path:   "/entries/" + id.String() + "/refresh-summary",
-			setup: func(t *testing.T, m *mockEntryRepo) {
-				m.resetSummaryFn = func(ctx context.Context, gotID uuid.UUID) error {
-					if gotID != id {
-						t.Fatalf("ResetSummary() id = %s, want %s", gotID, id)
-					}
-					return nil
-				}
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -822,16 +809,16 @@ func TestUpdate(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			verifyInput: func(t *testing.T, input *model.UpdateEntryInput) {
-				if input.Tag == nil || *input.Tag != "go" {
+				if !input.Tag.Set || input.Tag.Value == nil || *input.Tag.Value != "go" {
 					t.Errorf("Update() tag = %v, want \"go\"", input.Tag)
 				}
-				if input.Title == nil || *input.Title != "Updated Title" {
+				if !input.Title.Set || input.Title.Value == nil || *input.Title.Value != "Updated Title" {
 					t.Errorf("Update() title = %v, want 'Updated Title'", input.Title)
 				}
-				if input.Description == nil || *input.Description != "Updated Description" {
+				if !input.Description.Set || input.Description.Value == nil || *input.Description.Value != "Updated Description" {
 					t.Errorf("Update() description = %v, want 'Updated Description'", input.Description)
 				}
-				if input.SummaryText == nil || *input.SummaryText != "Updated Summary" {
+				if !input.SummaryText.Set || input.SummaryText.Value == nil || *input.SummaryText.Value != "Updated Summary" {
 					t.Errorf("Update() summary = %v, want 'Updated Summary'", input.SummaryText)
 				}
 				if input.SourceType == nil || *input.SourceType != model.SourceTypeYouTube {
@@ -840,7 +827,7 @@ func TestUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "update with empty optional fields sets nil",
+			name: "update with empty optional fields clears them",
 			id:   "550e8400-e29b-41d4-a716-446655440000",
 			formData: url.Values{
 				"title":       {""},
@@ -859,14 +846,14 @@ func TestUpdate(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			verifyInput: func(t *testing.T, input *model.UpdateEntryInput) {
-				if input.Title != nil {
-					t.Errorf("Update() title = %v, want nil for empty input", input.Title)
+				if !input.Title.Set || input.Title.Value != nil {
+					t.Errorf("Update() title = %+v, want set to nil for empty input", input.Title)
 				}
-				if input.Description != nil {
-					t.Errorf("Update() description = %v, want nil for whitespace input", input.Description)
+				if !input.Description.Set || input.Description.Value != nil {
+					t.Errorf("Update() description = %+v, want set to nil for whitespace input", input.Description)
 				}
-				if input.SummaryText != nil {
-					t.Errorf("Update() summary = %v, want nil for empty input", input.SummaryText)
+				if !input.SummaryText.Set || input.SummaryText.Value != nil {
+					t.Errorf("Update() summary = %+v, want set to nil for empty input", input.SummaryText)
 				}
 				if input.SourceType != nil {
 					t.Errorf("Update() sourceType = %v, want nil for empty input", input.SourceType)
@@ -952,8 +939,35 @@ func TestUpdate(t *testing.T) {
 				if input.SourceType != nil {
 					t.Errorf("Update() sourceType = %v, want nil for invalid type", input.SourceType)
 				}
-				if input.Title == nil || *input.Title != "Valid Title" {
+				if !input.Title.Set || input.Title.Value == nil || *input.Title.Value != "Valid Title" {
 					t.Errorf("Update() title = %v, want 'Valid Title'", input.Title)
+				}
+			},
+		},
+		{
+			name:     "omitted fields are left unchanged",
+			id:       "550e8400-e29b-41d4-a716-446655440000",
+			formData: url.Values{"notes": {"Only notes"}},
+			mockSetup: func(m *mockEntryRepo) {
+				m.updateFn = func(ctx context.Context, reqID uuid.UUID, input *model.UpdateEntryInput) (*model.Entry, error) {
+					return createTestEntry(reqID), nil
+				}
+			},
+			expectedStatus: http.StatusOK,
+			verifyInput: func(t *testing.T, input *model.UpdateEntryInput) {
+				if !input.Notes.Set || input.Notes.Value == nil || *input.Notes.Value != "Only notes" {
+					t.Errorf("Update() notes = %+v, want set to 'Only notes'", input.Notes)
+				}
+				for name, set := range map[string]bool{
+					"tag": input.Tag.Set, "time_spent": input.TimeSpentSeconds.Set, "quantity": input.Quantity.Set,
+					"title": input.Title.Set, "description": input.Description.Set, "summary": input.SummaryText.Set,
+				} {
+					if set {
+						t.Errorf("Update() %s is set, want unchanged when omitted", name)
+					}
+				}
+				if input.SourceType != nil {
+					t.Errorf("Update() sourceType = %v, want nil when omitted", *input.SourceType)
 				}
 			},
 		},

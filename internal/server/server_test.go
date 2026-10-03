@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/drywaters/learnd/internal/config"
+	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/testdb"
 )
@@ -64,5 +65,56 @@ func TestEntryJSONReadRoutesAreRemoved(t *testing.T) {
 		if rec.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("GET %s status = %d, want %d", path, rec.Code, http.StatusMethodNotAllowed)
 		}
+	}
+}
+
+// LRN-7: a PUT that omits fields used to write NULL into them, and a NULL
+// source_type failed with a 500.
+func TestUpdateLeavesOmittedFieldsUnchanged(t *testing.T) {
+	router, repo := newTestRouter(t)
+	ctx := context.Background()
+	tag, notes, title := "go", "first notes", "Original title"
+	created, err := repo.Create(ctx, &model.CreateEntryInput{
+		SourceURL: "https://example.com/put", NormalizedURL: "https://example.com/put", Tag: &tag, Notes: &notes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.Update(ctx, created.ID, &model.UpdateEntryInput{Title: model.Some(&title)}); err != nil {
+		t.Fatal(err)
+	}
+
+	put := func(form url.Values) *model.Entry {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPut, "/api/entries/"+created.ID.String(), strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Authorization", "Bearer "+testAPIToken)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("PUT %v status = %d: %s", form, rec.Code, rec.Body.String())
+		}
+		entry, err := repo.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return entry
+	}
+
+	entry := put(url.Values{"quantity": {"3"}})
+	if entry.Quantity == nil || *entry.Quantity != 3 {
+		t.Fatalf("quantity = %v, want 3", entry.Quantity)
+	}
+	if entry.Tag == nil || *entry.Tag != tag || entry.Notes == nil || *entry.Notes != notes ||
+		entry.Title == nil || *entry.Title != title || entry.SourceType != model.SourceTypeOther {
+		t.Fatalf("omitted fields changed: tag=%v notes=%v title=%v type=%s", entry.Tag, entry.Notes, entry.Title, entry.SourceType)
+	}
+
+	entry = put(url.Values{"title": {""}, "source_type": {""}})
+	if entry.Title != nil {
+		t.Fatalf("title = %q, want cleared", *entry.Title)
+	}
+	if entry.SourceType != model.SourceTypeOther || entry.Quantity == nil || *entry.Quantity != 3 {
+		t.Fatalf("type=%s quantity=%v, want unchanged", entry.SourceType, entry.Quantity)
 	}
 }
