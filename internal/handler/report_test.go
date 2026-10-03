@@ -111,6 +111,11 @@ func TestParseReportRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	cairoToday := time.Date(2026, 5, 1, 12, 0, 0, 0, cairo)
+	havana, err := time.LoadLocation("America/Havana")
+	if err != nil {
+		t.Fatal(err)
+	}
+	havanaToday := time.Date(2020, 3, 20, 12, 0, 0, 0, havana)
 
 	tests := []struct {
 		name               string
@@ -136,6 +141,12 @@ func TestParseReportRange(t *testing.T) {
 			wantStartDate: "2026-04-24", wantEndDate: "2026-04-24",
 			// Cairo skips from 00:00 to 01:00 on April 24, 2026, so that day starts at 01:00 (UTC+3).
 			wantStart: time.Date(2026, 4, 23, 22, 0, 0, 0, time.UTC), wantEnd: time.Date(2026, 4, 24, 21, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "start bound is the day's first hour when DST skips midnight backward", query: "start=2020-03-08&end=2020-03-08", today: havanaToday,
+			wantStartDate: "2020-03-08", wantEndDate: "2020-03-08",
+			// Havana skips from 00:00 to 01:00 on March 8, 2020; time.Date normalizes that midnight to 23:00 on March 7.
+			wantStart: time.Date(2020, 3, 8, 5, 0, 0, 0, time.UTC), wantEnd: time.Date(2020, 3, 9, 4, 0, 0, 0, time.UTC),
 		},
 		{name: "invalid start", query: "start=2026-02-30", wantErr: "Invalid start date"},
 		{name: "invalid end", query: "end=11/02/2026", wantErr: "Invalid end date"},

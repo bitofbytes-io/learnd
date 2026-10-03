@@ -57,19 +57,34 @@ func parseReportRange(query url.Values, today time.Time) (reportRange, error) {
 	defaultStart, defaultEnd := defaultReportDateStrings(today)
 	rng := reportRange{StartDate: cmp.Or(query.Get("start"), defaultStart), EndDate: cmp.Or(query.Get("end"), defaultEnd)}
 
-	var err error
-	if rng.Start, err = time.ParseInLocation(reportDateLayout, rng.StartDate, today.Location()); err != nil {
+	// Parse as plain dates (UTC) so the day is exactly what was asked for,
+	// then find where that day starts in the report's zone.
+	first, err := time.Parse(reportDateLayout, rng.StartDate)
+	if err != nil {
 		return reportRange{}, errors.New("Invalid start date")
 	}
-	lastDay, err := time.ParseInLocation(reportDateLayout, rng.EndDate, today.Location())
+	last, err := time.Parse(reportDateLayout, rng.EndDate)
 	if err != nil {
 		return reportRange{}, errors.New("Invalid end date")
 	}
-	// Build the next midnight from calendar fields: where DST skips midnight,
-	// lastDay is 01:00, and adding a day would carry that hour along.
-	year, month, day := lastDay.Date()
-	rng.End = time.Date(year, month, day+1, 0, 0, 0, 0, today.Location())
+	rng.Start = startOfDay(first, today.Location())
+	rng.End = startOfDay(last.AddDate(0, 0, 1), today.Location())
 	return rng, nil
+}
+
+// startOfDay returns the first instant in loc whose calendar date is date's
+// (a UTC midnight). Where a DST change skips midnight, time.Date normalizes
+// to 01:00 or back into the previous day; the latter steps forward an hour.
+func startOfDay(date time.Time, loc *time.Location) time.Time {
+	year, month, day := date.Date()
+	start := time.Date(year, month, day, 0, 0, 0, 0, loc)
+	for {
+		y, m, d := start.Date()
+		if !time.Date(y, m, d, 0, 0, 0, 0, time.UTC).Before(date) {
+			return start
+		}
+		start = start.Add(time.Hour)
+	}
 }
 
 // GetReport generates a report for the specified date range
