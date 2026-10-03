@@ -13,19 +13,17 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	cfg              *config.Config
-	entryRepo        *repository.EntryRepository
-	summaryCacheRepo *repository.SummaryCacheRepository
-	summaryEnabled   bool
+	cfg            *config.Config
+	entryRepo      *repository.EntryRepository
+	summaryEnabled bool
 }
 
 // New creates a new Server
-func New(cfg *config.Config, entryRepo *repository.EntryRepository, summaryCacheRepo *repository.SummaryCacheRepository, summaryEnabled bool) *Server {
+func New(cfg *config.Config, entryRepo *repository.EntryRepository, summaryEnabled bool) *Server {
 	return &Server{
-		cfg:              cfg,
-		entryRepo:        entryRepo,
-		summaryCacheRepo: summaryCacheRepo,
-		summaryEnabled:   summaryEnabled,
+		cfg:            cfg,
+		entryRepo:      entryRepo,
+		summaryEnabled: summaryEnabled,
 	}
 }
 
@@ -80,8 +78,6 @@ func (s *Server) Router() http.Handler {
 		// Entry API
 		entryHandler := handler.NewEntryHandler(s.entryRepo, s.summaryEnabled)
 		r.Post("/api/entries", entryHandler.Create)
-		r.Get("/api/entries", entryHandler.List)
-		r.Get("/api/entries/{id}", entryHandler.Get)
 		r.Put("/api/entries/{id}", entryHandler.Update)
 		r.Delete("/api/entries/{id}", entryHandler.Delete)
 		r.Post("/api/entries/{id}/refresh-enrichment", entryHandler.RefreshEnrichment)

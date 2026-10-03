@@ -75,18 +75,11 @@ func TestGroupedTotalsRoundAfterSummingSeconds(t *testing.T) {
 		{Tag: "go", Count: 1, TimeSeconds: 61},
 		{Tag: "db", Count: 1, TimeSeconds: 61},
 	}
-	typeAggs := []repository.TypeAggregation{
-		{Type: "article", Count: 2, TimeSeconds: 122},
-	}
 
 	tagTotalMinutes := minutesFromSeconds(sumTagAggregationSeconds(tagAggs))
-	typeTotalMinutes := minutesFromSeconds(sumTypeAggregationSeconds(typeAggs))
 
 	if tagTotalMinutes != 3 {
 		t.Fatalf("tag total minutes = %d, want 3", tagTotalMinutes)
-	}
-	if typeTotalMinutes != 3 {
-		t.Fatalf("type total minutes = %d, want 3", typeTotalMinutes)
 	}
 
 	oldBuggyTagTotalMinutes := 0
@@ -103,13 +96,5 @@ func TestSumTagAggregationSeconds(t *testing.T) {
 
 	if got := sumTagAggregationSeconds(aggs); got != 120 {
 		t.Fatalf("sumTagAggregationSeconds() = %d, want 120", got)
-	}
-}
-
-func TestSumTypeAggregationSeconds(t *testing.T) {
-	aggs := []repository.TypeAggregation{{TimeSeconds: 30}, {TimeSeconds: 90}, {TimeSeconds: 0}}
-
-	if got := sumTypeAggregationSeconds(aggs); got != 120 {
-		t.Fatalf("sumTypeAggregationSeconds() = %d, want 120", got)
 	}
 }

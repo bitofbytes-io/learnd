@@ -110,7 +110,7 @@ func run() error {
 	bgWorker.Start(ctx)
 
 	// Create server
-	srv := server.New(cfg, entryRepo, summaryCacheRepo, sum != nil)
+	srv := server.New(cfg, entryRepo, sum != nil)
 
 	// Start HTTP server
 	httpServer := &http.Server{

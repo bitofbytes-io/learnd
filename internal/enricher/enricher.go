@@ -28,9 +28,6 @@ type Enricher interface {
 	// Enrich extracts metadata from the URL
 	Enrich(ctx context.Context, url string) (*Result, error)
 
-	// Name returns the enricher identifier
-	Name() string
-
 	// Priority returns the enricher priority (lower = higher priority)
 	Priority() int
 }

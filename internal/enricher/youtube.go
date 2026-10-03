@@ -47,7 +47,6 @@ func NewYouTubeEnricher(apiKey string) *YouTubeEnricher {
 	}
 }
 
-func (e *YouTubeEnricher) Name() string  { return "youtube" }
 func (e *YouTubeEnricher) Priority() int { return 10 }
 
 func (e *YouTubeEnricher) CanHandle(rawURL string) bool {
