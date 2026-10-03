@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/drywaters/learnd/internal/config"
 	"github.com/drywaters/learnd/internal/model"
@@ -19,7 +20,7 @@ const testAPIToken = "test-api-token"
 func newTestRouter(t *testing.T) (http.Handler, *repository.EntryRepository) {
 	t.Helper()
 	repo := repository.NewEntryRepository(testdb.New(t))
-	cfg := &config.Config{APIToken: testAPIToken, SecureCookies: true}
+	cfg := &config.Config{APIToken: testAPIToken, SecureCookies: true, Location: time.UTC}
 	return New(cfg, repo, false).Router(), repo
 }
 

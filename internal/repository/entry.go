@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/drywaters/learnd/internal/model"
@@ -64,8 +63,6 @@ func (r *EntryRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Ent
 type ListOptions struct {
 	Limit  int
 	Offset int
-	Start  *time.Time
-	End    *time.Time
 }
 
 // List retrieves entries with pagination
@@ -74,32 +71,34 @@ func (r *EntryRepository) List(ctx context.Context, opts ListOptions) ([]model.E
 		opts.Limit = 50
 	}
 
-	query := `SELECT ` + entryColumns + ` FROM entries`
+	query := `SELECT ` + entryColumns + ` FROM entries ORDER BY created_at DESC LIMIT $1 OFFSET $2`
 
-	var where []string
-	var args []interface{}
-	argPos := 1
-
-	if opts.Start != nil {
-		where = append(where, fmt.Sprintf("created_at >= $%d", argPos))
-		args = append(args, *opts.Start)
-		argPos++
+	rows, err := r.pool.Query(ctx, query, opts.Limit, opts.Offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list entries: %w", err)
 	}
-	if opts.End != nil {
-		where = append(where, fmt.Sprintf("created_at <= $%d", argPos))
-		args = append(args, *opts.End)
-		argPos++
-	}
-	if len(where) > 0 {
-		query += " WHERE " + strings.Join(where, " AND ")
+	defer rows.Close()
+
+	return scanEntries(rows)
+}
+
+// ListCreatedBetween returns up to limit entries created in [start, end),
+// newest first, ordered by (created_at, id) so pages never skip or repeat an
+// entry. Pass the last entry of the previous page as after, or nil to start.
+func (r *EntryRepository) ListCreatedBetween(ctx context.Context, start, end time.Time, after *model.Entry, limit int) ([]model.Entry, error) {
+	var afterCreatedAt *time.Time
+	var afterID *uuid.UUID
+	if after != nil {
+		afterCreatedAt, afterID = &after.CreatedAt, &after.ID
 	}
 
-	limitPos := argPos
-	offsetPos := argPos + 1
-	query += fmt.Sprintf("\n\t\tORDER BY created_at DESC\n\t\tLIMIT $%d OFFSET $%d\n\t", limitPos, offsetPos)
-	args = append(args, opts.Limit, opts.Offset)
+	query := `SELECT ` + entryColumns + ` FROM entries
+		WHERE created_at >= $1 AND created_at < $2
+		  AND ($3::timestamptz IS NULL OR (created_at, id) < ($3, $4::uuid))
+		ORDER BY created_at DESC, id DESC
+		LIMIT $5`
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := r.pool.Query(ctx, query, start, end, afterCreatedAt, afterID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list entries: %w", err)
 	}
@@ -334,12 +333,13 @@ type ReportTotals struct {
 	TotalTimeSeconds int
 }
 
-// AggregateByTag returns entry counts and time aggregated by tag for a date range
+// AggregateByTag returns entry counts and time aggregated by tag for entries
+// created in [start, end)
 func (r *EntryRepository) AggregateByTag(ctx context.Context, start, end time.Time) ([]TagAggregation, error) {
 	query := `
 		SELECT tag, COUNT(*), COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
 		FROM entries
-		WHERE created_at >= $1 AND created_at <= $2 AND tag IS NOT NULL AND tag != ''
+		WHERE created_at >= $1 AND created_at < $2 AND tag IS NOT NULL AND tag != ''
 		GROUP BY tag
 		ORDER BY COUNT(*) DESC
 	`
@@ -365,12 +365,13 @@ func (r *EntryRepository) AggregateByTag(ctx context.Context, start, end time.Ti
 	return results, nil
 }
 
-// AggregateByType returns entry counts and time aggregated by source type for a date range
+// AggregateByType returns entry counts and time aggregated by source type for
+// entries created in [start, end)
 func (r *EntryRepository) AggregateByType(ctx context.Context, start, end time.Time) ([]TypeAggregation, error) {
 	query := `
 		SELECT COALESCE(NULLIF(BTRIM(source_type), ''), ''), COUNT(*), COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
 		FROM entries
-		WHERE created_at >= $1 AND created_at <= $2
+		WHERE created_at >= $1 AND created_at < $2
 		GROUP BY COALESCE(NULLIF(BTRIM(source_type), ''), '')
 		ORDER BY COUNT(*) DESC
 	`
@@ -396,12 +397,13 @@ func (r *EntryRepository) AggregateByType(ctx context.Context, start, end time.T
 	return results, nil
 }
 
-// GetReportTotals returns total entry count and time for a date range
+// GetReportTotals returns total entry count and time for entries created in
+// [start, end)
 func (r *EntryRepository) GetReportTotals(ctx context.Context, start, end time.Time) (*ReportTotals, error) {
 	query := `
 		SELECT COUNT(*), COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
 		FROM entries
-		WHERE created_at >= $1 AND created_at <= $2
+		WHERE created_at >= $1 AND created_at < $2
 	`
 
 	var totals ReportTotals

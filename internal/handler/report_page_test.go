@@ -9,7 +9,11 @@ import (
 )
 
 func TestReportsPagePrefillsDefaultDateRange(t *testing.T) {
-	handler := NewReportHandler(nil)
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := NewReportHandler(nil, loc)
 	req := httptest.NewRequest(http.MethodGet, "/reports", nil)
 	rec := httptest.NewRecorder()
 
@@ -19,8 +23,9 @@ func TestReportsPagePrefillsDefaultDateRange(t *testing.T) {
 		t.Fatalf("ReportsPage() status = %d, want %d", rec.Code, http.StatusOK)
 	}
 
-	startDate := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
-	endDate := time.Now().Format("2006-01-02")
+	today := time.Now().In(loc)
+	startDate := today.AddDate(0, 0, -30).Format("2006-01-02")
+	endDate := today.Format("2006-01-02")
 	body := rec.Body.String()
 
 	if !strings.Contains(body, `id="start"`) || !strings.Contains(body, `value="`+startDate+`"`) {

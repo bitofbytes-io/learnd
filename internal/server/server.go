@@ -86,7 +86,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/entries/{id}/edit", entryHandler.EditPage)
 
 		// Report handler
-		reportHandler := handler.NewReportHandler(s.entryRepo)
+		reportHandler := handler.NewReportHandler(s.entryRepo, s.cfg.Location)
 		r.Get("/reports", reportHandler.ReportsPage)
 		r.Get("/api/reports", reportHandler.GetReport)
 		r.Get("/api/reports/export", reportHandler.ExportCSV)

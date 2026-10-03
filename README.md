@@ -47,6 +47,7 @@ Do not commit this file.
 | `PORT` | No | HTTP port; defaults to `4500` |
 | `SECURE_COOKIES` | No | Set `false` for local HTTP; defaults to `true` |
 | `LOG_LEVEL` | No | Application log level; defaults to `info` |
+| `APP_TIMEZONE` | No | IANA time zone that decides which calendar day an entry falls on in reports and CSV exports; defaults to `America/New_York`. Time zone data is built into the binary |
 | `GEMINI_API_KEY` | No | Enables AI-generated summaries |
 | `GEMINI_MODEL` | No | Gemini model name; defaults to `gemini-3.1-flash-lite` |
 | `YOUTUBE_API_KEY` | No | Enables YouTube title, description, and duration enrichment |

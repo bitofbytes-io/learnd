@@ -30,7 +30,7 @@ type reportSeed struct {
 func newReportTestHandler(t *testing.T) (*ReportHandler, *pgxpool.Pool) {
 	t.Helper()
 	pool := testdb.New(t)
-	return NewReportHandler(repository.NewEntryRepository(pool)), pool
+	return NewReportHandler(repository.NewEntryRepository(pool), newYork(t)), pool
 }
 
 func seedReportEntries(t *testing.T, pool *pgxpool.Pool, seeds ...reportSeed) {
@@ -67,6 +67,15 @@ func reportStat(t *testing.T, body, label string) string {
 		t.Fatalf("report body has no %q card: %s", label, body)
 	}
 	return strings.TrimSpace(m[1])
+}
+
+func newYork(t *testing.T) *time.Location {
+	t.Helper()
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return loc
 }
 
 func midday(date string) time.Time {
@@ -118,7 +127,7 @@ func TestGetReportAggregatesEntriesInRange(t *testing.T) {
 }
 
 func TestReportEndpointsRejectInvalidDates(t *testing.T) {
-	h := NewReportHandler(nil)
+	h := NewReportHandler(nil, time.UTC)
 	for _, target := range []string{"?start=2026-13-01", "?end=yesterday", "?start=03/10/2026&end=2026-03-11"} {
 		for name, fn := range map[string]http.HandlerFunc{"GetReport": h.GetReport, "ExportCSV": h.ExportCSV} {
 			rec := serveReport(fn, "/api/reports"+target)
@@ -196,5 +205,67 @@ func TestExportCSVPagesThroughEveryEntry(t *testing.T) {
 	}
 	if records[1][1] != fmt.Sprintf("https://example.test/%d", total) {
 		t.Fatalf("first row = %s, want newest entry first", records[1][1])
+	}
+}
+
+// LRN-8: report days are calendar days in the configured zone, and the end
+// day runs up to, not including, the following midnight.
+func TestReportsUseConfiguredTimeZoneDays(t *testing.T) {
+	h, pool := newReportTestHandler(t)
+	at := func(s string) time.Time {
+		v, err := time.Parse(time.RFC3339Nano, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	seedReportEntries(t, pool,
+		reportSeed{createdAt: at("2026-03-10T03:30:00Z"), url: "https://example.test/previous-evening"}, // Mar 9, 23:30 EDT
+		reportSeed{createdAt: at("2026-03-10T04:30:00Z"), url: "https://example.test/first-day"},        // Mar 10, 00:30 EDT
+		reportSeed{createdAt: at("2026-03-12T03:59:59.5Z"), url: "https://example.test/last-moment"},    // Mar 11, 23:59:59.5 EDT
+		reportSeed{createdAt: at("2026-03-12T04:00:00Z"), url: "https://example.test/next-midnight"},    // Mar 12, 00:00 EDT
+	)
+	const query = "?start=2026-03-10&end=2026-03-11"
+
+	rec := serveReport(h.GetReport, "/api/reports"+query)
+	if got := reportStat(t, rec.Body.String(), "Total Entries"); got != "2" {
+		t.Fatalf("Total Entries = %s, want 2", got)
+	}
+
+	records := readCSV(t, serveReport(h.ExportCSV, "/api/reports/export"+query))
+	want := [][]string{
+		{"Date", "URL", "Title", "Type", "Tags", "Time (min)", "Quantity", "Notes", "Summary"},
+		{"2026-03-11", "https://example.test/last-moment", "", "article", "", "", "", "", ""},
+		{"2026-03-10", "https://example.test/first-day", "", "article", "", "", "", "", ""},
+	}
+	if fmt.Sprint(records) != fmt.Sprint(want) {
+		t.Fatalf("CSV = %q\nwant %q", records, want)
+	}
+}
+
+// LRN-9: entries sharing a created_at must not be skipped or repeated at a
+// page boundary.
+func TestExportCSVPagesThroughTiedTimestamps(t *testing.T) {
+	h, pool := newReportTestHandler(t)
+	const total = csvPageSize + 500
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO entries (created_at, source_url, normalized_url)
+		SELECT TIMESTAMPTZ '2026-03-10 16:00:00Z', 'https://example.test/' || n, 'https://example.test/' || n
+		FROM generate_series(1, $1) AS n`, total)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	records := readCSV(t, serveReport(h.ExportCSV, "/api/reports/export?start=2026-03-10&end=2026-03-10"))
+
+	seen := make(map[string]bool, total)
+	for _, record := range records[1:] {
+		if seen[record[1]] {
+			t.Fatalf("URL %s exported twice", record[1])
+		}
+		seen[record[1]] = true
+	}
+	if len(seen) != total {
+		t.Fatalf("exported %d entries, want %d", len(seen), total)
 	}
 }
