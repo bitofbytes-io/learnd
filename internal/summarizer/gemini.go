@@ -23,11 +23,6 @@ type GeminiSummarizer struct {
 	modelName string
 }
 
-// NewGeminiSummarizer creates a new Gemini summarizer
-func NewGeminiSummarizer(ctx context.Context, apiKey string) (*GeminiSummarizer, error) {
-	return NewGeminiSummarizerWithModel(ctx, apiKey, geminiDefaultModel)
-}
-
 // NewGeminiSummarizerWithModel creates a new Gemini summarizer using the given model.
 func NewGeminiSummarizerWithModel(ctx context.Context, apiKey, modelName string) (*GeminiSummarizer, error) {
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
@@ -80,11 +75,6 @@ func (g *GeminiSummarizer) Summarize(ctx context.Context, input Input) (*Result,
 		Version:     g.Version(),
 		GeneratedAt: time.Now().UTC(),
 	}, nil
-}
-
-// Close closes the Gemini client
-func (g *GeminiSummarizer) Close() error {
-	return g.client.Close()
 }
 
 func buildPrompt(input Input) string {

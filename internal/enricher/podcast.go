@@ -35,7 +35,6 @@ func NewPodcastEnricher() *PodcastEnricher {
 	}
 }
 
-func (e *PodcastEnricher) Name() string  { return "podcast" }
 func (e *PodcastEnricher) Priority() int { return 20 }
 
 func (e *PodcastEnricher) CanHandle(rawURL string) bool {

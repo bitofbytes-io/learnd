@@ -29,7 +29,6 @@ func NewWebEnricher() *WebEnricher {
 	}
 }
 
-func (e *WebEnricher) Name() string            { return "web" }
 func (e *WebEnricher) Priority() int           { return 100 } // Lowest priority, fallback
 func (e *WebEnricher) CanHandle(_ string) bool { return true }
 

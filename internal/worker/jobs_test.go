@@ -36,7 +36,6 @@ func (e fakeEnricher) Enrich(ctx context.Context, url string) (*enricher.Result,
 	return e.call(ctx, url)
 }
 func (fakeEnricher) CanHandle(string) bool { return true }
-func (fakeEnricher) Name() string          { return "fake" }
 func (fakeEnricher) Priority() int         { return 1 }
 
 func createWorkerEntry(t *testing.T, pool *pgxpool.Pool, ready bool) uuid.UUID {

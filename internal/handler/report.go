@@ -309,14 +309,6 @@ func sumTagAggregationSeconds(aggs []repository.TagAggregation) int {
 	return total
 }
 
-func sumTypeAggregationSeconds(aggs []repository.TypeAggregation) int {
-	total := 0
-	for _, agg := range aggs {
-		total += agg.TimeSeconds
-	}
-	return total
-}
-
 func sanitizeCSVField(value string) string {
 	if value == "" {
 		return value

@@ -13,19 +13,17 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	cfg              *config.Config
-	entryRepo        *repository.EntryRepository
-	summaryCacheRepo *repository.SummaryCacheRepository
-	summaryEnabled   bool
+	cfg            *config.Config
+	entryRepo      *repository.EntryRepository
+	summaryEnabled bool
 }
 
 // New creates a new Server
-func New(cfg *config.Config, entryRepo *repository.EntryRepository, summaryCacheRepo *repository.SummaryCacheRepository, summaryEnabled bool) *Server {
+func New(cfg *config.Config, entryRepo *repository.EntryRepository, summaryEnabled bool) *Server {
 	return &Server{
-		cfg:              cfg,
-		entryRepo:        entryRepo,
-		summaryCacheRepo: summaryCacheRepo,
-		summaryEnabled:   summaryEnabled,
+		cfg:            cfg,
+		entryRepo:      entryRepo,
+		summaryEnabled: summaryEnabled,
 	}
 }
 
