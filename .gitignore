@@ -28,9 +28,8 @@ local.mk
 learnd.env
 .worktree.json
 
-# Playwright auth state capture
+# Browser auth state (never commit)
 .auth/
-auth/
 
 # Generated CSS (rebuild from tailwind/)
 static/styles.css
