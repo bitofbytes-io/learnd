@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -27,65 +28,36 @@ func (r *EntryRepository) Create(ctx context.Context, input *model.CreateEntryIn
 	query := `
 		INSERT INTO entries (source_url, normalized_url, tag, time_spent_seconds, quantity, notes)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
-		          canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
-		          enrichment_status, enrichment_error, enriched_at,
-		          summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at
-	`
+		RETURNING ` + entryColumns
 
-	var entry model.Entry
-	err := r.pool.QueryRow(ctx, query,
+	entry, err := scanEntry(r.pool.QueryRow(ctx, query,
 		input.SourceURL,
 		input.NormalizedURL,
 		input.Tag,
 		input.TimeSpentSeconds,
 		input.Quantity,
 		input.Notes,
-	).Scan(
-		&entry.ID, &entry.CreatedAt, &entry.UpdatedAt, &entry.SourceURL, &entry.NormalizedURL, &entry.Tag,
-		&entry.TimeSpentSeconds, &entry.Quantity, &entry.Notes,
-		&entry.CanonicalURL, &entry.Domain, &entry.SourceType, &entry.Title, &entry.Description,
-		&entry.PublishedAt, &entry.RuntimeSeconds, &entry.MetadataJSON,
-		&entry.EnrichmentStatus, &entry.EnrichmentError, &entry.EnrichedAt,
-		&entry.SummaryText, &entry.SummaryStatus, &entry.SummaryError,
-		&entry.SummaryProvider, &entry.SummaryModel, &entry.SummaryVersion, &entry.SummaryGeneratedAt,
-	)
+	))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create entry: %w", err)
 	}
 
-	return &entry, nil
+	return entry, nil
 }
 
 // GetByID retrieves an entry by ID
 func (r *EntryRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Entry, error) {
-	query := `
-		SELECT id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
-		       canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
-		       enrichment_status, enrichment_error, enriched_at,
-		       summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at
-		FROM entries
-		WHERE id = $1
-	`
+	query := `SELECT ` + entryColumns + ` FROM entries WHERE id = $1`
 
-	var entry model.Entry
-	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&entry.ID, &entry.CreatedAt, &entry.UpdatedAt, &entry.SourceURL, &entry.NormalizedURL, &entry.Tag,
-		&entry.TimeSpentSeconds, &entry.Quantity, &entry.Notes,
-		&entry.CanonicalURL, &entry.Domain, &entry.SourceType, &entry.Title, &entry.Description,
-		&entry.PublishedAt, &entry.RuntimeSeconds, &entry.MetadataJSON,
-		&entry.EnrichmentStatus, &entry.EnrichmentError, &entry.EnrichedAt,
-		&entry.SummaryText, &entry.SummaryStatus, &entry.SummaryError,
-		&entry.SummaryProvider, &entry.SummaryModel, &entry.SummaryVersion, &entry.SummaryGeneratedAt,
-	)
-	if err == pgx.ErrNoRows {
+	entry, err := scanEntry(r.pool.QueryRow(ctx, query, id))
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get entry: %w", err)
 	}
 
-	return &entry, nil
+	return entry, nil
 }
 
 // ListOptions contains options for listing entries
@@ -102,13 +74,7 @@ func (r *EntryRepository) List(ctx context.Context, opts ListOptions) ([]model.E
 		opts.Limit = 50
 	}
 
-	query := `
-		SELECT id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
-		       canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
-		       enrichment_status, enrichment_error, enriched_at,
-		       summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at
-		FROM entries
-	`
+	query := `SELECT ` + entryColumns + ` FROM entries`
 
 	var where []string
 	var args []interface{}
@@ -166,31 +132,18 @@ func (r *EntryRepository) Update(ctx context.Context, id uuid.UUID, input *model
 		    summary_claim_token = CASE WHEN %[1]s THEN NULL ELSE summary_claim_token END,
 		    summary_lease_expires_at = CASE WHEN %[1]s THEN NULL ELSE summary_lease_expires_at END
 		WHERE id = $1
-		RETURNING id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
-		          canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
-		          enrichment_status, enrichment_error, enriched_at,
-		          summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at
-	`, summarySuperseded)
+		RETURNING %[2]s`, summarySuperseded, entryColumns)
 
-	var entry model.Entry
-	err := r.pool.QueryRow(ctx, query, id, input.Tag, input.TimeSpentSeconds, input.Quantity, input.Notes,
-		input.Title, input.Description, input.SummaryText, input.SourceType).Scan(
-		&entry.ID, &entry.CreatedAt, &entry.UpdatedAt, &entry.SourceURL, &entry.NormalizedURL, &entry.Tag,
-		&entry.TimeSpentSeconds, &entry.Quantity, &entry.Notes,
-		&entry.CanonicalURL, &entry.Domain, &entry.SourceType, &entry.Title, &entry.Description,
-		&entry.PublishedAt, &entry.RuntimeSeconds, &entry.MetadataJSON,
-		&entry.EnrichmentStatus, &entry.EnrichmentError, &entry.EnrichedAt,
-		&entry.SummaryText, &entry.SummaryStatus, &entry.SummaryError,
-		&entry.SummaryProvider, &entry.SummaryModel, &entry.SummaryVersion, &entry.SummaryGeneratedAt,
-	)
-	if err == pgx.ErrNoRows {
+	entry, err := scanEntry(r.pool.QueryRow(ctx, query, id, input.Tag, input.TimeSpentSeconds, input.Quantity, input.Notes,
+		input.Title, input.Description, input.SummaryText, input.SourceType))
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to update entry: %w", err)
 	}
 
-	return &entry, nil
+	return entry, nil
 }
 
 // Delete removes an entry
@@ -292,15 +245,7 @@ func (r *EntryRepository) GetDuplicateCountsByNormalizedURL(ctx context.Context,
 
 // ListByNormalizedURL retrieves entries matching the normalized URL.
 func (r *EntryRepository) ListByNormalizedURL(ctx context.Context, normalizedURL string) ([]model.Entry, error) {
-	query := `
-		SELECT id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
-		       canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
-		       enrichment_status, enrichment_error, enriched_at,
-		       summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at
-		FROM entries
-		WHERE normalized_url = $1
-		ORDER BY created_at DESC
-	`
+	query := `SELECT ` + entryColumns + ` FROM entries WHERE normalized_url = $1 ORDER BY created_at DESC`
 
 	rows, err := r.pool.Query(ctx, query, normalizedURL)
 	if err != nil {
@@ -446,24 +391,42 @@ func (r *EntryRepository) GetReportTotals(ctx context.Context, start, end time.T
 	return &totals, nil
 }
 
-// scanEntries scans rows into entries slice
+// entryColumns lists the entry columns in the order scanEntry reads them.
+const entryColumns = `id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
+	canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
+	enrichment_status, enrichment_error, enriched_at,
+	summary_text, summary_status, summary_error, summary_provider, summary_model, summary_version, summary_generated_at`
+
+// scanEntry scans one row selected with entryColumns.
+func scanEntry(row pgx.Row) (*model.Entry, error) {
+	var entry model.Entry
+	err := row.Scan(
+		&entry.ID, &entry.CreatedAt, &entry.UpdatedAt, &entry.SourceURL, &entry.NormalizedURL, &entry.Tag,
+		&entry.TimeSpentSeconds, &entry.Quantity, &entry.Notes,
+		&entry.CanonicalURL, &entry.Domain, &entry.SourceType, &entry.Title, &entry.Description,
+		&entry.PublishedAt, &entry.RuntimeSeconds, &entry.MetadataJSON,
+		&entry.EnrichmentStatus, &entry.EnrichmentError, &entry.EnrichedAt,
+		&entry.SummaryText, &entry.SummaryStatus, &entry.SummaryError,
+		&entry.SummaryProvider, &entry.SummaryModel, &entry.SummaryVersion, &entry.SummaryGeneratedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &entry, nil
+}
+
+// scanEntries scans rows selected with entryColumns into a slice.
 func scanEntries(rows pgx.Rows) ([]model.Entry, error) {
 	var entries []model.Entry
 	for rows.Next() {
-		var entry model.Entry
-		err := rows.Scan(
-			&entry.ID, &entry.CreatedAt, &entry.UpdatedAt, &entry.SourceURL, &entry.NormalizedURL, &entry.Tag,
-			&entry.TimeSpentSeconds, &entry.Quantity, &entry.Notes,
-			&entry.CanonicalURL, &entry.Domain, &entry.SourceType, &entry.Title, &entry.Description,
-			&entry.PublishedAt, &entry.RuntimeSeconds, &entry.MetadataJSON,
-			&entry.EnrichmentStatus, &entry.EnrichmentError, &entry.EnrichedAt,
-			&entry.SummaryText, &entry.SummaryStatus, &entry.SummaryError,
-			&entry.SummaryProvider, &entry.SummaryModel, &entry.SummaryVersion, &entry.SummaryGeneratedAt,
-		)
+		entry, err := scanEntry(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan entry: %w", err)
 		}
-		entries = append(entries, entry)
+		entries = append(entries, *entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
 	}
 	return entries, nil
 }
