@@ -112,24 +112,8 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Trigger toast and return the new entry row
 	h.htmxToast(w, "Entry saved", &entry.ID, "")
 
-	// Render entry row
-	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
-	partials.EntryRow(entryView).Render(ctx, w)
-
-	if duplicateCount > 1 {
-		duplicates, err := h.entryRepo.ListByNormalizedURL(ctx, entry.NormalizedURL)
-		if err == nil {
-			for _, duplicate := range duplicates {
-				if duplicate.ID == entry.ID {
-					continue
-				}
-				duplicateView := buildEntryView(&duplicate, duplicateCount, h.summaryEnabled)
-				duplicateView.SwapOOB = true
-				partials.EntryRow(duplicateView).Render(ctx, w)
-			}
-		}
-	}
+	h.renderRow(w, r, entry)
+	h.renderDuplicateRows(w, r, entry.NormalizedURL, entry.ID)
 
 	// Render OOB swap to remove empty state
 	partials.EmptyState(false, true).Render(ctx, w)
@@ -145,10 +129,8 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *EntryHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+	id, ok := parseEntryID(w, r)
+	if !ok {
 		return
 	}
 
@@ -163,21 +145,20 @@ func (h *EntryHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
+	entryView := buildEntryView(entry, getDuplicateCount(ctx, h.entryRepo, entry), h.summaryEnabled)
 	returnTo := sanitizeReturnTo(r.URL.Query().Get("return_to"))
 	entryView.EditURL = entryEditURL(entry.ID.String(), returnTo)
 	pages.EditPage(entryView, returnTo).Render(ctx, w)
 }
 
-// Update updates an entry
+// Update updates an entry. Form fields the request omits keep their stored
+// values; a field sent empty is cleared. The edit form discards the response
+// body (hx-swap="none"), so only the toast trigger is sent.
 func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+	id, ok := parseEntryID(w, r)
+	if !ok {
 		return
 	}
 
@@ -186,31 +167,22 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse user fields
-	tag, err := parseTag(r.FormValue("tag"))
-	if err != nil {
-		h.htmxError(w, err.Error())
-		return
-	}
-	timeSpent := parseTimeSpentMinutes(r.FormValue("time_spent"))
-	quantity := parseQuantity(r.FormValue("quantity"))
-	notes := parseOptionalString(r.FormValue("notes"))
-
-	// Parse content fields
-	title := parseOptionalString(r.FormValue("title"))
-	description := parseOptionalString(r.FormValue("description"))
-	summary := parseOptionalString(r.FormValue("summary"))
-	sourceType := parseSourceType(r.FormValue("source_type"))
-
 	input := &model.UpdateEntryInput{
-		Tag:              tag,
-		TimeSpentSeconds: timeSpent,
-		Quantity:         quantity,
-		Notes:            notes,
-		Title:            title,
-		Description:      description,
-		SummaryText:      summary,
-		SourceType:       sourceType,
+		TimeSpentSeconds: formOptional(r, "time_spent", parseTimeSpentMinutes),
+		Quantity:         formOptional(r, "quantity", parseQuantity),
+		Notes:            formOptional(r, "notes", parseOptionalString),
+		Title:            formOptional(r, "title", parseOptionalString),
+		Description:      formOptional(r, "description", parseOptionalString),
+		SummaryText:      formOptional(r, "summary", parseOptionalString),
+		SourceType:       parseSourceType(r.FormValue("source_type")),
+	}
+	if _, sent := r.Form["tag"]; sent {
+		tag, err := parseTag(r.Form.Get("tag"))
+		if err != nil {
+			h.htmxError(w, err.Error())
+			return
+		}
+		input.Tag = model.Some(tag)
 	}
 
 	entry, err := h.entryRepo.Update(ctx, id, input)
@@ -226,21 +198,15 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("entry updated", "entry_id", entry.ID)
 	h.htmxToast(w, "Entry updated", &entry.ID, "")
-
-	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
-	stampDashboardEntryViewFromRequest(r, &entryView)
-	partials.EntryRow(entryView).Render(ctx, w)
+	w.WriteHeader(http.StatusOK)
 }
 
 // Delete removes an entry
 func (h *EntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+	id, ok := parseEntryID(w, r)
+	if !ok {
 		return
 	}
 
@@ -286,27 +252,15 @@ func (h *EntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	// Render OOB swap for empty state (show if no entries left)
 	partials.EmptyState(count == 0, true).Render(ctx, w)
 
-	if normalizedURL != "" {
-		duplicates, err := h.entryRepo.ListByNormalizedURL(ctx, normalizedURL)
-		if err == nil && len(duplicates) > 0 {
-			duplicateCount := len(duplicates)
-			for _, duplicate := range duplicates {
-				duplicateView := buildEntryView(&duplicate, duplicateCount, h.summaryEnabled)
-				duplicateView.SwapOOB = true
-				partials.EntryRow(duplicateView).Render(ctx, w)
-			}
-		}
-	}
+	h.renderDuplicateRows(w, r, normalizedURL, id)
 }
 
 // RefreshEnrichment resets enrichment status to pending
 func (h *EntryHandler) RefreshEnrichment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+	id, ok := parseEntryID(w, r)
+	if !ok {
 		return
 	}
 
@@ -324,21 +278,17 @@ func (h *EntryHandler) RefreshEnrichment(w http.ResponseWriter, r *http.Request)
 
 	slog.Info("entry enrichment queued", "entry_id", id)
 	h.htmxToast(w, "Enrichment queued", &id, "")
-
-	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
-	stampDashboardEntryViewFromRequest(r, &entryView)
-	partials.EntryRow(entryView).Render(ctx, w)
+	h.renderRow(w, r, entry)
 }
 
-// RefreshSummary resets summary status to pending
+// RefreshSummary resets summary status to pending. Its only caller, the edit
+// page, discards the response body (hx-swap="none"), so only the toast
+// trigger is sent.
 func (h *EntryHandler) RefreshSummary(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+	id, ok := parseEntryID(w, r)
+	if !ok {
 		return
 	}
 
@@ -356,34 +306,70 @@ func (h *EntryHandler) RefreshSummary(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("entry summary queued", "entry_id", id)
 	h.htmxToast(w, "Summary queued", &id, "")
-
-	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
-	stampDashboardEntryViewFromRequest(r, &entryView)
-	partials.EntryRow(entryView).Render(ctx, w)
+	w.WriteHeader(http.StatusOK)
 }
 
 // Status returns the status partial for an entry (for polling)
 func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+	id, ok := parseEntryID(w, r)
+	if !ok {
 		return
 	}
 
-	entry, err := h.entryRepo.GetByID(ctx, id)
+	entry, err := h.entryRepo.GetByID(r.Context(), id)
 	if err != nil || entry == nil {
 		http.Error(w, "Entry not found", http.StatusNotFound)
 		return
 	}
 
-	duplicateCount := getDuplicateCount(ctx, h.entryRepo, entry)
-	entryView := buildEntryView(entry, duplicateCount, h.summaryEnabled)
+	h.renderRow(w, r, entry)
+}
+
+// parseEntryID reads the {id} route parameter. When it is not a UUID it writes
+// a 400 response and returns false.
+func parseEntryID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+// renderRow writes the entry's row, keeping the dashboard page in its edit link.
+func (h *EntryHandler) renderRow(w http.ResponseWriter, r *http.Request, entry *model.Entry) {
+	entryView := buildEntryView(entry, getDuplicateCount(r.Context(), h.entryRepo, entry), h.summaryEnabled)
 	stampDashboardEntryViewFromRequest(r, &entryView)
-	partials.EntryRow(entryView).Render(ctx, w)
+	partials.EntryRow(entryView).Render(r.Context(), w)
+}
+
+// renderDuplicateRows re-renders, out of band, every entry sharing
+// normalizedURL except skipID, so their duplicate counts stay current.
+func (h *EntryHandler) renderDuplicateRows(w http.ResponseWriter, r *http.Request, normalizedURL string, skipID uuid.UUID) {
+	if normalizedURL == "" {
+		return
+	}
+	duplicates, err := h.entryRepo.ListByNormalizedURL(r.Context(), normalizedURL)
+	if err != nil {
+		return
+	}
+	for _, duplicate := range duplicates {
+		if duplicate.ID == skipID {
+			continue
+		}
+		duplicateView := buildEntryView(&duplicate, len(duplicates), h.summaryEnabled)
+		duplicateView.SwapOOB = true
+		partials.EntryRow(duplicateView).Render(r.Context(), w)
+	}
+}
+
+// formOptional parses a form field only when the request sent it.
+func formOptional[T any](r *http.Request, name string, parse func(string) T) model.Optional[T] {
+	values, ok := r.Form[name]
+	if !ok || len(values) == 0 {
+		return model.Optional[T]{}
+	}
+	return model.Some(parse(values[0]))
 }
 
 func captureRedirectAfterCreate(r *http.Request) string {

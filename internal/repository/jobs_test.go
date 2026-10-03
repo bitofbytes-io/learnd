@@ -243,8 +243,9 @@ func TestRefreshCacheFailureDoesNotRevokeClaim(t *testing.T) {
 
 func updateInput(entry *model.Entry) *model.UpdateEntryInput {
 	return &model.UpdateEntryInput{
-		Tag: entry.Tag, TimeSpentSeconds: entry.TimeSpentSeconds, Quantity: entry.Quantity, Notes: entry.Notes,
-		Title: entry.Title, Description: entry.Description, SummaryText: entry.SummaryText, SourceType: &entry.SourceType,
+		Tag: model.Some(entry.Tag), TimeSpentSeconds: model.Some(entry.TimeSpentSeconds), Quantity: model.Some(entry.Quantity),
+		Notes: model.Some(entry.Notes), Title: model.Some(entry.Title), Description: model.Some(entry.Description),
+		SummaryText: model.Some(entry.SummaryText), SourceType: &entry.SourceType,
 	}
 }
 
@@ -279,7 +280,7 @@ func TestUserEditsSurviveWorkerCompletion(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	editTitleAndType := func(in *model.UpdateEntryInput) { in.Title = &userText; in.SourceType = &userType }
+	editTitleAndType := func(in *model.UpdateEntryInput) { in.Title = model.Some(&userText); in.SourceType = &userType }
 	assertEnriched := func(t *testing.T, repo *EntryRepository, id uuid.UUID) {
 		t.Helper()
 		entry, err := repo.GetByID(ctx, id)
@@ -334,7 +335,7 @@ func TestUserEditsSurviveWorkerCompletion(t *testing.T) {
 			t.Fatalf("claim: %v %v", claim, err)
 		}
 		other := model.SourceTypeOther
-		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Title = nil; in.SourceType = &other })
+		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Title = model.Some[*string](nil); in.SourceType = &other })
 		if err := repo.CompleteEnrichment(ctx, claim, enrichment); err != nil {
 			t.Fatal(err)
 		}
@@ -364,7 +365,7 @@ func TestUserEditsSurviveWorkerCompletion(t *testing.T) {
 		if err != nil || claim == nil {
 			t.Fatalf("claim: %v %v", claim, err)
 		}
-		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.SummaryText = &userText })
+		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.SummaryText = model.Some(&userText) })
 		if err := repo.CompleteSummary(ctx, claim, summary, nil); !errors.Is(err, ErrClaimLost) {
 			t.Fatalf("completion after edit: %v", err)
 		}
@@ -391,7 +392,7 @@ func TestUserEditsSurviveWorkerCompletion(t *testing.T) {
 			t.Fatalf("claim: %v %v", claim, err)
 		}
 		notes := "just notes"
-		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Notes = &notes })
+		edit(t, repo, id, func(in *model.UpdateEntryInput) { in.Notes = model.Some(&notes) })
 		if err := repo.CompleteSummary(ctx, claim, summary, nil); err != nil {
 			t.Fatalf("notes-only edit revoked claim: %v", err)
 		}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
+	_ "time/tzdata" // The Alpine image has no zoneinfo; embed it for APP_TIMEZONE.
 )
 
 // Config holds all application configuration
@@ -17,6 +19,8 @@ type Config struct {
 	YouTubeAPIKey string
 	LogLevel      string
 	SecureCookies bool
+	// Location decides which calendar day an entry falls on in reports.
+	Location *time.Location
 }
 
 // Load reads configuration from environment variables.
@@ -54,6 +58,18 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	cfg.SecureCookies = secureCookiesStr != "false"
+
+	timezone, err := getEnv("APP_TIMEZONE", "America/New_York")
+	if err != nil {
+		return nil, err
+	}
+	// A blank value would load UTC; treat it as unset.
+	if timezone = strings.TrimSpace(timezone); timezone == "" {
+		timezone = "America/New_York"
+	}
+	if cfg.Location, err = time.LoadLocation(timezone); err != nil {
+		return nil, fmt.Errorf("APP_TIMEZONE must be an IANA time zone, got %q: %w", timezone, err)
+	}
 
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
