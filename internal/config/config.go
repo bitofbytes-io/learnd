@@ -63,7 +63,10 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	timezone = strings.TrimSpace(timezone)
+	// A blank value would load UTC; treat it as unset.
+	if timezone = strings.TrimSpace(timezone); timezone == "" {
+		timezone = "America/New_York"
+	}
 	if cfg.Location, err = time.LoadLocation(timezone); err != nil {
 		return nil, fmt.Errorf("APP_TIMEZONE must be an IANA time zone, got %q: %w", timezone, err)
 	}

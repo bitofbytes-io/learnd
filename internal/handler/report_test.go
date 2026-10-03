@@ -116,7 +116,7 @@ func TestParseReportRange(t *testing.T) {
 		wantErr            string
 	}{
 		{
-			name: "defaults to the last 30 days", query: "",
+			name: "defaults to the pre-filled dates, 30 days ago through today", query: "",
 			wantStartDate: "2026-10-03", wantEndDate: "2026-11-02",
 			wantStart: time.Date(2026, 10, 3, 4, 0, 0, 0, time.UTC), wantEnd: time.Date(2026, 11, 3, 5, 0, 0, 0, time.UTC),
 		},

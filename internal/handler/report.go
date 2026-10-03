@@ -51,8 +51,8 @@ type reportRange struct {
 }
 
 // parseReportRange reads the start and end query dates as calendar days in
-// today's location, defaulting to the last 30 days. The returned error is
-// safe to show to the user.
+// today's location. They default to the dates the reports page pre-fills,
+// 30 days ago through today. The returned error is safe to show to the user.
 func parseReportRange(query url.Values, today time.Time) (reportRange, error) {
 	defaultStart, defaultEnd := defaultReportDateStrings(today)
 	rng := reportRange{StartDate: cmp.Or(query.Get("start"), defaultStart), EndDate: cmp.Or(query.Get("end"), defaultEnd)}

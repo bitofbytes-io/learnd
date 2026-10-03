@@ -20,6 +20,17 @@ func TestLoadAppTimezone(t *testing.T) {
 		}
 	})
 
+	t.Run("treats a blank value as unset", func(t *testing.T) {
+		t.Setenv("APP_TIMEZONE", "   ")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Location.String() != "America/New_York" {
+			t.Fatalf("Location = %s, want America/New_York", cfg.Location)
+		}
+	})
+
 	t.Run("accepts an IANA zone", func(t *testing.T) {
 		t.Setenv("APP_TIMEZONE", " Europe/London ")
 		cfg, err := Load()
