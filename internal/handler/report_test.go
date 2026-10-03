@@ -106,6 +106,11 @@ func TestParseReportRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	today := time.Date(2026, 11, 2, 21, 30, 0, 0, loc)
+	cairo, err := time.LoadLocation("Africa/Cairo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cairoToday := time.Date(2026, 5, 1, 12, 0, 0, 0, cairo)
 
 	tests := []struct {
 		name               string
@@ -114,6 +119,7 @@ func TestParseReportRange(t *testing.T) {
 		wantEndDate        string
 		wantStart, wantEnd time.Time
 		wantErr            string
+		today              time.Time
 	}{
 		{
 			name: "defaults to the pre-filled dates, 30 days ago through today", query: "",
@@ -125,6 +131,12 @@ func TestParseReportRange(t *testing.T) {
 			wantStartDate: "2026-10-31", wantEndDate: "2026-11-01",
 			wantStart: time.Date(2026, 10, 31, 4, 0, 0, 0, time.UTC), wantEnd: time.Date(2026, 11, 2, 5, 0, 0, 0, time.UTC),
 		},
+		{
+			name: "end bound is midnight when DST skips the end day's midnight", query: "start=2026-04-24&end=2026-04-24", today: cairoToday,
+			wantStartDate: "2026-04-24", wantEndDate: "2026-04-24",
+			// Cairo skips from 00:00 to 01:00 on April 24, 2026, so that day starts at 01:00 (UTC+3).
+			wantStart: time.Date(2026, 4, 23, 22, 0, 0, 0, time.UTC), wantEnd: time.Date(2026, 4, 24, 21, 0, 0, 0, time.UTC),
+		},
 		{name: "invalid start", query: "start=2026-02-30", wantErr: "Invalid start date"},
 		{name: "invalid end", query: "end=11/02/2026", wantErr: "Invalid end date"},
 	}
@@ -135,7 +147,11 @@ func TestParseReportRange(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rng, err := parseReportRange(query, today)
+			day := today
+			if !tt.today.IsZero() {
+				day = tt.today
+			}
+			rng, err := parseReportRange(query, day)
 			if tt.wantErr != "" {
 				if err == nil || err.Error() != tt.wantErr {
 					t.Fatalf("parseReportRange() error = %v, want %q", err, tt.wantErr)

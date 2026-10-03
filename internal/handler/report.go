@@ -65,7 +65,10 @@ func parseReportRange(query url.Values, today time.Time) (reportRange, error) {
 	if err != nil {
 		return reportRange{}, errors.New("Invalid end date")
 	}
-	rng.End = lastDay.AddDate(0, 0, 1)
+	// Build the next midnight from calendar fields: where DST skips midnight,
+	// lastDay is 01:00, and adding a day would carry that hour along.
+	year, month, day := lastDay.Date()
+	rng.End = time.Date(year, month, day+1, 0, 0, 0, 0, today.Location())
 	return rng, nil
 }
 
