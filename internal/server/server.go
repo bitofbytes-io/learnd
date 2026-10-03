@@ -78,8 +78,6 @@ func (s *Server) Router() http.Handler {
 		// Entry API
 		entryHandler := handler.NewEntryHandler(s.entryRepo, s.summaryEnabled)
 		r.Post("/api/entries", entryHandler.Create)
-		r.Get("/api/entries", entryHandler.List)
-		r.Get("/api/entries/{id}", entryHandler.Get)
 		r.Put("/api/entries/{id}", entryHandler.Update)
 		r.Delete("/api/entries/{id}", entryHandler.Delete)
 		r.Post("/api/entries/{id}/refresh-enrichment", entryHandler.RefreshEnrichment)

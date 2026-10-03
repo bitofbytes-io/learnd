@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/drywaters/learnd/internal/model"
-	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/ui"
 	"github.com/drywaters/learnd/internal/ui/pages"
 	"github.com/drywaters/learnd/internal/ui/partials"
@@ -140,72 +139,6 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Clear form error
 	fmt.Fprint(w, `<div id="form-error" hx-swap-oob="true"></div>`)
-}
-
-// List returns entries as JSON
-func (h *EntryHandler) List(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	limit := 50
-	if l := r.URL.Query().Get("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
-			limit = v
-		}
-	}
-
-	offset := 0
-	if o := r.URL.Query().Get("offset"); o != "" {
-		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
-			offset = v
-		}
-	}
-
-	entries, err := h.entryRepo.List(ctx, repository.ListOptions{
-		Limit:  limit,
-		Offset: offset,
-	})
-	if err != nil {
-		slog.Error("failed to list entries", "handler", "List", "error", err)
-		http.Error(w, "Failed to list entries", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(entries); err != nil {
-		slog.Error("failed to encode entries response", "handler", "List", "error", err)
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
-	}
-}
-
-// Get returns a single entry
-func (h *EntryHandler) Get(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
-		return
-	}
-
-	entry, err := h.entryRepo.GetByID(ctx, id)
-	if err != nil {
-		slog.Error("failed to get entry", "handler", "Get", "id", id, "error", err)
-		http.Error(w, "Failed to get entry", http.StatusInternalServerError)
-		return
-	}
-	if entry == nil {
-		http.Error(w, "Entry not found", http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(entry); err != nil {
-		slog.Error("failed to encode entry response", "handler", "Get", "id", id, "error", err)
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
-	}
 }
 
 // EditPage renders the edit form for an entry
