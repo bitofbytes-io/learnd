@@ -136,6 +136,7 @@ jobs:
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Build and push learnd image
+        id: build
         env:
           REGISTRY: ${{ env.IMAGE_REG }}
           IMAGE_REPO: ${{ env.IMAGE_REPO }}
@@ -148,7 +149,16 @@ jobs:
           set -euo pipefail
           : "${REGISTRY:?Missing vars.IMAGE_REG}"
           : "${IMAGE_REPO:?Missing vars.IMAGE_REPO}"
-          make docker-buildx
+          metadata_file="${RUNNER_TEMP}/build-metadata.json"
+          make docker-buildx METADATA_FILE="${metadata_file}"
+          image_name="${REGISTRY}/${IMAGE_REPO}"
+          digest="$(jq -r '."containerimage.digest" // empty' "${metadata_file}")"
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Build metadata has no valid containerimage.digest (got '${digest}')" >&2
+            exit 1
+          fi
+          echo "Pushed ${image_name}@${digest}"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
       - name: Install SSH key & known_hosts
         env:
@@ -162,9 +172,39 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
 
       - name: Push main to local bare repo (trigger hook)
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
           : "${MANAGER_HOST:?Missing vars.MANAGER_HOST}"
           : "${MANAGER_REPO_PATH:=/srv/git/learnd-ci.git}"
+          : "${IMAGE_DIGEST:?Missing image digest from the build step}"
           git remote add local "ssh://git@${MANAGER_HOST}/${MANAGER_REPO_PATH}"
-          git push --force local HEAD:refs/heads/main
+          git push --force \
+            -o "image-digest=${IMAGE_REG}/${IMAGE_REPO}@${IMAGE_DIGEST}" \
+            local HEAD:refs/heads/main
+
+      - name: Verify crystal1 deployed this revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          expected_image="${IMAGE_REG}/${IMAGE_REPO}@${IMAGE_DIGEST}"
+          status_file="${RUNNER_TEMP}/deploy-status.json"
+          git fetch --no-tags --force local refs/deploy/status:refs/remotes/local/deploy-status
+          git show refs/remotes/local/deploy-status:status.json > "${status_file}"
+          if ! jq -e --arg revision "${EXPECTED_REVISION}" --arg image "${expected_image}" --arg service "proxy_learnd" '
+            .schema == 1 and .state == "succeeded" and .revision == $revision and
+            .services[$service].revision == $revision and
+            .services[$service].image == $image and
+            (.services[$service].desired | type) == "number" and
+            .services[$service].desired > 0 and
+            .services[$service].running == .services[$service].desired
+          ' "${status_file}" >/dev/null; then
+            echo "crystal1 did not report a successful deploy of ${expected_image} at ${EXPECTED_REVISION}." >&2
+            echo "If this is a rerun of an already-pushed commit, the hook did not run; push a new commit to redeploy." >&2
+            cat "${status_file}" >&2
+            exit 1
+          fi
+          echo "crystal1 deployed ${expected_image} at ${EXPECTED_REVISION}"

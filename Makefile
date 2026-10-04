@@ -54,6 +54,7 @@ test: ## Run Go tests
 	go test -v ./...
 
 # Docker (production)
+# METADATA_FILE, when set, receives buildx's build metadata; CI reads the pushed digest from it.
 docker-buildx: ensure-image-tag templ tail-prod ## Build and push multi-arch Docker image using buildx
 	docker buildx build \
 		--platform $(PLATFORMS) \
@@ -66,6 +67,7 @@ docker-buildx: ensure-image-tag templ tail-prod ## Build and push multi-arch Doc
 		--label "org.opencontainers.image.description=Learnd web application" \
 		--tag $(REGISTRY)/$(IMAGE_REPO):$(TAG) \
 		--tag $(REGISTRY)/$(IMAGE_REPO):latest \
+		$(if $(METADATA_FILE),--metadata-file "$(METADATA_FILE)") \
 		--push \
 		.
 
