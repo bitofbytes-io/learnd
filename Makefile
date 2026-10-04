@@ -67,7 +67,7 @@ docker-buildx: ensure-image-tag templ tail-prod ## Build and push multi-arch Doc
 		--label "org.opencontainers.image.description=Learnd web application" \
 		--tag $(REGISTRY)/$(IMAGE_REPO):$(TAG) \
 		--tag $(REGISTRY)/$(IMAGE_REPO):latest \
-		$(if $(METADATA_FILE),--metadata-file $(METADATA_FILE)) \
+		$(if $(METADATA_FILE),--metadata-file "$(METADATA_FILE)") \
 		--push \
 		.
 
