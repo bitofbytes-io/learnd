@@ -10,8 +10,9 @@
       "groupName": "all non-major dependencies"
     },
     {
-      "description": "One weekly PR for GitHub Actions updates.",
+      "description": "One weekly PR for non-major GitHub Actions updates; majors stay separate PRs.",
       "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin"],
       "groupName": "GitHub Actions"
     },
     {
