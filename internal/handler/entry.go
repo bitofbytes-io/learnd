@@ -322,6 +322,18 @@ func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enrichment can reclassify an entry out of the dashboard's type filter;
+	// an empty body removes its row. Tags never change during enrichment.
+	if returnTo := dashboardReturnTo(r); returnTo != "" {
+		if parsed, err := url.Parse(returnTo); err == nil {
+			filter := parseDashboardFilter(parsed.Query())
+			if filter.SourceType != "" && string(entry.SourceType) != filter.SourceType {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+		}
+	}
+
 	h.renderRow(w, r, entry)
 }
 

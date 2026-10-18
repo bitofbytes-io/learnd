@@ -730,6 +730,37 @@ func TestEditPage(t *testing.T) {
 	}
 }
 
+func TestStatusRemovesRowsReclassifiedOutOfTypeFilter(t *testing.T) {
+	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440020")
+	mock := &mockEntryRepo{
+		getByIDFn: func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) {
+			return createTestEntry(id), nil // enriched as an article
+		},
+	}
+	router := setupTestHandler(mock)
+
+	for currentURL, wantRow := range map[string]bool{
+		"https://learnd.test/?type=other":           false,
+		"https://learnd.test/?type=article":         true,
+		"https://learnd.test/?q=test":               true,
+		"https://learnd.test/":                      true,
+		"https://learnd.test/entries/x/edit?type=x": true,
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/entries/"+id.String()+"/status", nil)
+		req.Header.Set("HX-Request", "true")
+		req.Header.Set("HX-Current-URL", currentURL)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Status(%s) status = %d, want 200", currentURL, rec.Code)
+		}
+		if gotRow := strings.Contains(rec.Body.String(), `id="entry-`+id.String()+`"`); gotRow != wantRow {
+			t.Fatalf("Status(%s) rendered row = %v, want %v", currentURL, gotRow, wantRow)
+		}
+	}
+}
+
 func TestDashboardRowRerendersPreserveReturnTo(t *testing.T) {
 	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440010")
 
