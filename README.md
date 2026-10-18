@@ -70,12 +70,14 @@ docker run -d --name db --network learnd \
 until docker exec db pg_isready -U learnd -d learnd >/dev/null 2>&1; do sleep 1; done
 ```
 
-Apply migrations before starting Learnd:
+Learnd embeds the SQL migrations in its binary and applies any pending ones at startup, before the HTTP server and background worker start. It records them in the same `goose_db_version` table the Goose CLI uses, so versions already applied by hand are skipped. If a migration fails, Learnd exits non-zero and never serves traffic, which stops a rolling deploy. Replicas that start together take a PostgreSQL advisory lock, so only one applies migrations while the others wait. No extra configuration is needed.
+
+You can still inspect or apply migrations with the Goose CLI:
 
 ```bash
 go install github.com/pressly/goose/v3/cmd/goose@latest
 export DATABASE_URL='postgres://learnd:change-me@localhost:5432/learnd?sslmode=disable'
-goose -dir migrations postgres "$DATABASE_URL" up
+goose -dir migrations postgres "$DATABASE_URL" status
 ```
 
 ## Run with Docker

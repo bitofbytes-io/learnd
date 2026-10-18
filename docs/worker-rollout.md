@@ -4,7 +4,8 @@ Migration `008_add_worker_leases.sql` is additive, but old workers do not respec
 claims. Do not run old and new workers together during this rollout.
 
 1. Stop all old Learnd replicas and confirm their processes have exited.
-2. Apply migrations using the existing Goose deployment workflow.
+2. Apply migrations. The new image applies pending migrations at startup; you
+   can also run `make migrate` first.
 3. Deploy the new image and restore the desired three replicas.
 4. Verify each replica is healthy and pending jobs finish. Legacy `processing`
    rows without a lease become eligible immediately. Other abandoned jobs become

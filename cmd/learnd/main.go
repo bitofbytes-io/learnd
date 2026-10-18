@@ -12,6 +12,7 @@ import (
 
 	"github.com/drywaters/learnd/internal/config"
 	"github.com/drywaters/learnd/internal/enricher"
+	"github.com/drywaters/learnd/internal/migrate"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/server"
 	"github.com/drywaters/learnd/internal/summarizer"
@@ -66,6 +67,12 @@ func run() error {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 	slog.Info("connected to database")
+
+	// Apply pending migrations before serving. A failure exits the process, so
+	// the new task never becomes healthy and the rollout stops.
+	if err := migrate.Apply(ctx, pool, logger); err != nil {
+		return fmt.Errorf("failed to apply migrations: %w", err)
+	}
 
 	// Initialize repositories
 	entryRepo := repository.NewEntryRepository(pool)

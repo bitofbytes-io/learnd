@@ -15,6 +15,29 @@ import (
 
 func New(t *testing.T) *pgxpool.Pool {
 	t.Helper()
+	pool := NewEmpty(t)
+	ctx := context.Background()
+	_, filename, _, _ := runtime.Caller(0)
+	files, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "../../migrations/*.sql"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("migrations: %v", err)
+	}
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		up := strings.SplitN(string(content), "-- +goose Down", 2)[0]
+		if _, err := pool.Exec(ctx, up); err != nil {
+			t.Fatalf("%s: %v", filepath.Base(file), err)
+		}
+	}
+	return pool
+}
+
+// NewEmpty returns a pool whose search_path is a fresh schema with no tables.
+func NewEmpty(t *testing.T) *pgxpool.Pool {
+	t.Helper()
 	databaseURL := os.Getenv("LEARND_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set LEARND_TEST_DATABASE_URL to run PostgreSQL regressions")
@@ -41,20 +64,5 @@ func New(t *testing.T) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	_, filename, _, _ := runtime.Caller(0)
-	files, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "../../migrations/*.sql"))
-	if err != nil || len(files) == 0 {
-		t.Fatalf("migrations: %v", err)
-	}
-	for _, file := range files {
-		content, err := os.ReadFile(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		up := strings.SplitN(string(content), "-- +goose Down", 2)[0]
-		if _, err := pool.Exec(ctx, up); err != nil {
-			t.Fatalf("%s: %v", filepath.Base(file), err)
-		}
-	}
 	return pool
 }
