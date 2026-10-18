@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/drywaters/learnd/internal/config"
 	"github.com/drywaters/learnd/internal/enricher"
+	"github.com/drywaters/learnd/internal/metrics"
 	"github.com/drywaters/learnd/internal/migrate"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/server"
@@ -132,10 +134,30 @@ func run() error {
 	shutdownChan := make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
 
+	// Bind the public port before the metrics listener, so a METRICS_ADDR that
+	// collides with PORT costs metrics rather than the app.
+	publicListener, err := net.Listen("tcp", httpServer.Addr)
+	if err != nil {
+		bgWorker.Stop()
+		return fmt.Errorf("server error: %w", err)
+	}
+
+	// The metrics listener is internal-only and optional: it is never mounted on
+	// the public router, and a bind failure is logged without stopping learnd.
+	metricsServer := metrics.Start(cfg.MetricsAddr, metrics.NewRegistry(metrics.NewPoolCollector(pool)))
+	// Runs after the public server has shut down and before the pool closes.
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			slog.Warn("metrics listener shutdown", "error", err)
+		}
+	}()
+
 	serveErr := make(chan error, 1)
 	go func() {
 		slog.Info("server listening", "addr", httpServer.Addr)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(publicListener); err != nil && err != http.ErrServerClosed {
 			serveErr <- err
 		}
 	}()

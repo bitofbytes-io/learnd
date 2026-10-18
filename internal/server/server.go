@@ -5,6 +5,7 @@ import (
 
 	"github.com/drywaters/learnd/internal/config"
 	"github.com/drywaters/learnd/internal/handler"
+	"github.com/drywaters/learnd/internal/metrics"
 	"github.com/drywaters/learnd/internal/middleware"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/go-chi/chi/v5"
@@ -37,6 +38,8 @@ func (s *Server) Router() http.Handler {
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
 	r.Use(middleware.Logger)
+	// Before Recoverer, so a recovered panic is still counted as a 500.
+	r.Use(metrics.Middleware)
 	r.Use(chimw.Recoverer)
 
 	// Static files

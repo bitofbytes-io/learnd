@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/drywaters/learnd/internal/enricher"
+	"github.com/drywaters/learnd/internal/metrics"
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/summarizer"
@@ -194,6 +195,83 @@ func TestProviderFailureRequiresRetryAndOptionalSummaryStaysPending(t *testing.T
 	entry, _ = repo.GetByID(context.Background(), id)
 	if calls != 1 || entry.SummaryStatus != model.StatusFailed {
 		t.Fatalf("calls %d status %s", calls, entry.SummaryStatus)
+	}
+}
+
+// jobCount reads learnd_jobs_total{job,result}, which is process-wide, so
+// callers compare increases rather than totals.
+func jobCount(t *testing.T, job, result string) float64 {
+	t.Helper()
+	families, err := metrics.NewRegistry().Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, family := range families {
+		if family.GetName() != "learnd_jobs_total" {
+			continue
+		}
+		for _, m := range family.GetMetric() {
+			labels := map[string]string{}
+			for _, pair := range m.GetLabel() {
+				labels[pair.GetName()] = pair.GetValue()
+			}
+			if labels["job"] == job && labels["result"] == result {
+				return m.GetCounter().GetValue()
+			}
+		}
+	}
+	t.Fatalf("learnd_jobs_total{job=%q,result=%q} not exported", job, result)
+	return 0
+}
+
+func TestJobOutcomesAreCounted(t *testing.T) {
+	if string(repository.EnrichmentJob) != metrics.JobEnrichment || string(repository.SummaryJob) != metrics.JobSummary {
+		t.Fatal("job kinds and metrics job labels differ")
+	}
+	pool := testdb.New(t)
+	repo := repository.NewEntryRepository(pool)
+	cache := repository.NewSummaryCacheRepository(pool)
+	ctx := context.Background()
+
+	series := [][2]string{
+		{metrics.JobEnrichment, metrics.ResultSuccess},
+		{metrics.JobSummary, metrics.ResultSuccess},
+		{metrics.JobSummary, metrics.ResultFailure},
+		{metrics.JobSummary, metrics.ResultSkipped},
+	}
+	before := map[[2]string]float64{}
+	for _, s := range series {
+		before[s] = jobCount(t, s[0], s[1])
+	}
+
+	// One summary succeeds, the next fails and the untitled entry is skipped.
+	var calls int
+	provider := fakeSummarizer{call: func(context.Context, summarizer.Input) (*summarizer.Result, error) {
+		calls++
+		if calls > 1 {
+			return nil, errors.New("provider failure")
+		}
+		return &summarizer.Result{Text: "fresh", Provider: "fake", Model: "fake", Version: "1", GeneratedAt: time.Now()}, nil
+	}}
+	createWorkerEntry(t, pool, true)
+	createWorkerEntry(t, pool, true)
+	if _, err := pool.Exec(ctx, `INSERT INTO entries (source_url, normalized_url, enrichment_status)
+ VALUES ('https://example.test/untitled', 'https://example.test/untitled', 'ok')`); err != nil {
+		t.Fatal(err)
+	}
+	New(repo, cache, nil, provider, Config{}).process(ctx, repository.SummaryJob)
+
+	// Enrich last, so the enriched entry is not also summarized above.
+	createWorkerEntry(t, pool, false)
+	registry := enricher.NewRegistry(fakeEnricher{call: func(context.Context, string) (*enricher.Result, error) {
+		return &enricher.Result{SourceType: model.SourceTypeOther}, nil
+	}})
+	New(repo, cache, registry, nil, Config{}).process(ctx, repository.EnrichmentJob)
+
+	for _, s := range series {
+		if got := jobCount(t, s[0], s[1]) - before[s]; got != 1 {
+			t.Errorf("learnd_jobs_total%v rose by %v, want 1", s, got)
+		}
 	}
 }
 

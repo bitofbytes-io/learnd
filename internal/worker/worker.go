@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/drywaters/learnd/internal/enricher"
+	"github.com/drywaters/learnd/internal/metrics"
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/summarizer"
@@ -150,7 +151,7 @@ func (w *Worker) enrich(parent context.Context, claim *repository.JobClaim) {
 		Title: sanitizeUTF8(result.Title), Description: sanitizeUTF8(result.Description),
 		PublishedAt: result.PublishedAt, RuntimeSeconds: result.RuntimeSeconds, MetadataJSON: metadata,
 	})
-	w.saved(parent, repository.EnrichmentJob, claim, err)
+	w.saved(parent, repository.EnrichmentJob, claim, metrics.ResultSuccess, err)
 }
 
 func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {
@@ -159,7 +160,7 @@ func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {
 	entry := claim.Entry
 	if entry.Title == nil && entry.Description == nil {
 		err := w.entryRepo.FinishJob(ctx, repository.SummaryJob, claim, model.StatusSkipped, nil)
-		w.saved(parent, repository.SummaryJob, claim, err)
+		w.saved(parent, repository.SummaryJob, claim, metrics.ResultSkipped, err)
 		return
 	}
 	canonicalURL := entry.SourceURL
@@ -170,7 +171,7 @@ func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {
 	if !claim.ForceRefresh {
 		cached, err := w.cacheRepo.GetByURLHash(ctx, urlHash)
 		if err != nil {
-			w.saved(parent, repository.SummaryJob, claim, err)
+			w.saved(parent, repository.SummaryJob, claim, metrics.ResultSuccess, err)
 			return
 		}
 		if cached != nil {
@@ -181,7 +182,7 @@ func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {
 				Text: cached.SummaryText, Provider: cached.Provider, Model: cached.Model,
 				Version: cached.Version, GeneratedAt: cached.CreatedAt,
 			}, nil)
-			w.saved(parent, repository.SummaryJob, claim, err)
+			w.saved(parent, repository.SummaryJob, claim, metrics.ResultSuccess, err)
 			return
 		}
 	}
@@ -209,7 +210,7 @@ func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {
 		URLHash: urlHash, CanonicalURL: canonicalURL, SummaryText: result.Text,
 		Provider: result.Provider, Model: result.Model, Version: result.Version,
 	})
-	w.saved(parent, repository.SummaryJob, claim, err)
+	w.saved(parent, repository.SummaryJob, claim, metrics.ResultSuccess, err)
 }
 
 // Provider failures and job deadlines require manual retry. Only worker shutdown
@@ -224,14 +225,22 @@ func (w *Worker) finishError(parent context.Context, kind repository.JobKind, cl
 	}
 	cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := w.entryRepo.FinishJob(cleanup, kind, claim, status, errorMessage); err != nil && !errors.Is(err, repository.ErrClaimLost) {
+	err := w.entryRepo.FinishJob(cleanup, kind, claim, status, errorMessage)
+	if err != nil && !errors.Is(err, repository.ErrClaimLost) {
 		slog.Error("finish job", "kind", kind, "id", claim.Entry.ID, "error", err)
+	}
+	if status == model.StatusFailed && !errors.Is(err, repository.ErrClaimLost) {
+		metrics.Job(string(kind), metrics.ResultFailure)
 	}
 }
 
-func (w *Worker) saved(parent context.Context, kind repository.JobKind, claim *repository.JobClaim, err error) {
+// saved records the outcome of a job's final write. result is the
+// learnd_jobs_total result for a successful write; a discarded result (lost
+// claim) or a shutdown is not counted.
+func (w *Worker) saved(parent context.Context, kind repository.JobKind, claim *repository.JobClaim, result string, err error) {
 	if err == nil {
 		slog.Info("completed job", "kind", kind, "id", claim.Entry.ID)
+		metrics.Job(string(kind), result)
 		return
 	}
 	if errors.Is(err, repository.ErrClaimLost) {
@@ -242,7 +251,9 @@ func (w *Worker) saved(parent context.Context, kind repository.JobKind, claim *r
 	// best-effort immediate release, avoiding waits during a normal shutdown.
 	if parent.Err() != nil {
 		w.finishError(parent, kind, claim, err)
+		return
 	}
+	metrics.Job(string(kind), metrics.ResultFailure)
 }
 
 // jobErrorMessage returns error text that is safe to persist and display.

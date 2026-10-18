@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/drywaters/learnd/internal/metrics"
 )
 
 const cookieName = "learnd_session"
@@ -26,6 +28,7 @@ func Auth(apiToken string, secureCookies bool) func(http.Handler) http.Handler {
 				}
 				// Invalid bearer token
 				slog.Info("api authentication failed", "reason", "invalid_bearer_token", "path", r.URL.Path)
+				metrics.LoginFailure(metrics.ReasonInvalidBearerToken)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -47,6 +50,7 @@ func Auth(apiToken string, secureCookies bool) func(http.Handler) http.Handler {
 			if !constantTimeEqual(cookie.Value, apiToken) {
 				// Invalid cookie, clear it and redirect
 				slog.Info("browser authentication failed", "reason", "invalid_cookie", "path", r.URL.Path)
+				metrics.LoginFailure(metrics.ReasonInvalidCookie)
 				http.SetCookie(w, &http.Cookie{
 					Name:     cookieName,
 					Value:    "",

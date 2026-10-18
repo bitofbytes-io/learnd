@@ -56,3 +56,23 @@ func TestLoadAppTimezone(t *testing.T) {
 		}
 	})
 }
+
+func TestLoadMetricsAddr(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example.invalid/learnd")
+	t.Setenv("API_TOKEN", "test-token")
+
+	for _, tt := range []struct{ env, want string }{
+		{"", ":9464"},
+		{"off", "off"},
+		{"127.0.0.1:9500", "127.0.0.1:9500"},
+	} {
+		t.Setenv("METRICS_ADDR", tt.env)
+		cfg, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.MetricsAddr != tt.want {
+			t.Fatalf("METRICS_ADDR=%q: got %q, want %q", tt.env, cfg.MetricsAddr, tt.want)
+		}
+	}
+}
