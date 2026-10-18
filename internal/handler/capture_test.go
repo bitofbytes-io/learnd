@@ -415,6 +415,25 @@ func TestCapturePageKeepsUnknownSelectedTag(t *testing.T) {
 	}
 }
 
+func TestCapturePageSuggestsTagsInUse(t *testing.T) {
+	mock := &mockEntryRepo{
+		listTagsFn: func(_ context.Context) ([]string, error) {
+			return []string{"ai", "go"}, nil
+		},
+	}
+
+	handler := NewCaptureHandler(mock, false)
+	req := httptest.NewRequest(http.MethodGet, "/?tag=gone", nil)
+	rec := httptest.NewRecorder()
+	handler.CapturePage(rec, req)
+
+	body := rec.Body.String()
+	want := `list="tag-suggestions"><datalist id="tag-suggestions"><option value="ai"></option><option value="go"></option></datalist>`
+	if !strings.Contains(body, want) {
+		t.Fatalf("CapturePage() body missing tag suggestions %q: %q", want, body)
+	}
+}
+
 func TestCapturePageEntriesRequestSkipsTagList(t *testing.T) {
 	mock := &mockEntryRepo{
 		listTagsFn: func(_ context.Context) ([]string, error) {

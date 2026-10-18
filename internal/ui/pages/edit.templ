@@ -9,7 +9,7 @@ import (
 	"github.com/drywaters/learnd/internal/ui/layout"
 )
 
-templ EditPage(entry ui.EntryView, returnTo string) {
+templ EditPage(entry ui.EntryView, returnTo string, tags []string) {
 	@layout.Base("Edit Entry - learnd") {
 		<div class="min-h-screen">
 			@components.CaptureHeader()
@@ -86,7 +86,9 @@ templ EditPage(entry ui.EntryView, returnTo string) {
 											pattern="[a-z0-9\-]*"
 											title="Lowercase letters, numbers, and hyphens only"
 											autocomplete="off"
+											list={ tagSuggestionsID }
 										/>
+										@tagSuggestions(tags)
 									</div>
 									<div class="sm:w-32">
 										<label for="time_spent" class="block text-xs font-medium mb-1.5" style="color: var(--color-ink-lighter);">

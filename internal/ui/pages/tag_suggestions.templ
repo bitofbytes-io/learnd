@@ -1,0 +1,14 @@
+package pages
+
+// tagSuggestionsID links a tag input to tagSuggestions via its list attribute.
+const tagSuggestionsID = "tag-suggestions"
+
+// tagSuggestions offers the tags already in use as autocomplete options, so
+// new tags reuse existing ones instead of near-duplicates that split reports.
+templ tagSuggestions(tags []string) {
+	<datalist id={ tagSuggestionsID }>
+		for _, tag := range tags {
+			<option value={ tag }></option>
+		}
+	</datalist>
+}

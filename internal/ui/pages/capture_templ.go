@@ -36,7 +36,7 @@ func matchingEntriesHeading(total int) string {
 	return fmt.Sprintf("%d matching entries", total)
 }
 
-func CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter ui.DashboardFilter, totalEntries int, prefillURL string) templ.Component {
+func CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter ui.DashboardFilter, tags []string, totalEntries int, prefillURL string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -90,7 +90,28 @@ func CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter ui
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"input-field input-url w-full\" placeholder=\"https://...\" autocomplete=\"off\" autofocus required></div><div class=\"md:w-48\"><label for=\"tag\" class=\"block text-sm font-medium mb-2\" style=\"color: var(--color-ink-light);\">Tag</label> <input type=\"text\" id=\"tag\" name=\"tag\" class=\"input-field w-full\" placeholder=\"ai\" pattern=\"[a-z0-9\\-]*\" title=\"Lowercase letters, numbers, and hyphens only\" autocomplete=\"off\"></div></div><div id=\"form-error\" class=\"mb-4\"></div><div id=\"duplicate-warning\" class=\"mb-4\"></div><!-- Optional Fields Row --><div class=\"flex flex-col sm:flex-row gap-4 mb-6\"><div class=\"sm:w-32\"><label for=\"time_spent\" class=\"block text-xs font-medium mb-1.5\" style=\"color: var(--color-ink-lighter);\">Time (min)</label> <input type=\"number\" id=\"time_spent\" name=\"time_spent\" class=\"input-field w-full text-sm\" placeholder=\"30\" min=\"1\"></div><div class=\"sm:w-32\"><label for=\"quantity\" class=\"block text-xs font-medium mb-1.5\" style=\"color: var(--color-ink-lighter);\">Quantity</label> <input type=\"number\" id=\"quantity\" name=\"quantity\" class=\"input-field w-full text-sm\" placeholder=\"e.g. pages\" min=\"1\"></div><div class=\"flex-grow\"><label for=\"notes\" class=\"block text-xs font-medium mb-1.5\" style=\"color: var(--color-ink-lighter);\">Notes</label> <input type=\"text\" id=\"notes\" name=\"notes\" class=\"input-field w-full text-sm\" placeholder=\"Optional notes...\"></div></div><!-- Submit Button --><div class=\"flex justify-end\"><button type=\"submit\" class=\"btn-primary relative flex items-center justify-center pl-6\"><span class=\"htmx-indicator\"><span class=\"animate-spin inline-block\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"input-field input-url w-full\" placeholder=\"https://...\" autocomplete=\"off\" autofocus required></div><div class=\"md:w-48\"><label for=\"tag\" class=\"block text-sm font-medium mb-2\" style=\"color: var(--color-ink-light);\">Tag</label> <input type=\"text\" id=\"tag\" name=\"tag\" class=\"input-field w-full\" placeholder=\"ai\" pattern=\"[a-z0-9\\-]*\" title=\"Lowercase letters, numbers, and hyphens only\" autocomplete=\"off\" list=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var4 string
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(tagSuggestionsID)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 77, Col: 32}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = tagSuggestions(tags).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></div><div id=\"form-error\" class=\"mb-4\"></div><div id=\"duplicate-warning\" class=\"mb-4\"></div><!-- Optional Fields Row --><div class=\"flex flex-col sm:flex-row gap-4 mb-6\"><div class=\"sm:w-32\"><label for=\"time_spent\" class=\"block text-xs font-medium mb-1.5\" style=\"color: var(--color-ink-lighter);\">Time (min)</label> <input type=\"number\" id=\"time_spent\" name=\"time_spent\" class=\"input-field w-full text-sm\" placeholder=\"30\" min=\"1\"></div><div class=\"sm:w-32\"><label for=\"quantity\" class=\"block text-xs font-medium mb-1.5\" style=\"color: var(--color-ink-lighter);\">Quantity</label> <input type=\"number\" id=\"quantity\" name=\"quantity\" class=\"input-field w-full text-sm\" placeholder=\"e.g. pages\" min=\"1\"></div><div class=\"flex-grow\"><label for=\"notes\" class=\"block text-xs font-medium mb-1.5\" style=\"color: var(--color-ink-lighter);\">Notes</label> <input type=\"text\" id=\"notes\" name=\"notes\" class=\"input-field w-full text-sm\" placeholder=\"Optional notes...\"></div></div><!-- Submit Button --><div class=\"flex justify-end\"><button type=\"submit\" class=\"btn-primary relative flex items-center justify-center pl-6\"><span class=\"htmx-indicator\"><span class=\"animate-spin inline-block\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -98,7 +119,7 @@ func CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter ui
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</span></span> <span>Save Entry</span></button></div></form></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span></span> <span>Save Entry</span></button></div></form></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -110,7 +131,7 @@ func CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter ui
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</main></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</main></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -148,117 +169,117 @@ func dashboardFilters(filter ui.DashboardFilter) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var4 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var4 == nil {
-			templ_7745c5c3_Var4 = templ.NopComponent
+		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var5 == nil {
+			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<form id=\"dashboard-filters\" action=\"/\" method=\"get\" role=\"search\" class=\"flex flex-col sm:flex-row gap-3 mb-6\" hx-get=\"/\" hx-target=\"#dashboard-entries-region\" hx-select=\"#dashboard-entries-region\" hx-swap=\"outerHTML show:none\" hx-push-url=\"true\" hx-include=\"#dashboard-filters\" hx-sync=\"this:replace\"><input type=\"search\" id=\"dashboard-search\" name=\"q\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<form id=\"dashboard-filters\" action=\"/\" method=\"get\" role=\"search\" class=\"flex flex-col sm:flex-row gap-3 mb-6\" hx-get=\"/\" hx-target=\"#dashboard-entries-region\" hx-select=\"#dashboard-entries-region\" hx-swap=\"outerHTML show:none\" hx-push-url=\"true\" hx-include=\"#dashboard-filters\" hx-sync=\"this:replace\"><input type=\"search\" id=\"dashboard-search\" name=\"q\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(filter.Query)
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(filter.Query)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 171, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 173, Col: 23}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" class=\"input-field w-full sm:flex-grow\" placeholder=\"Search entries...\" aria-label=\"Search entries\" autocomplete=\"off\" maxlength=\"200\" hx-get=\"/\" hx-trigger=\"input changed delay:300ms\"><div class=\"grid grid-cols-2 gap-3 sm:flex sm:shrink-0\"><select name=\"tag\" class=\"input-field input-select w-full pr-10 sm:w-40\" aria-label=\"Filter by tag\" hx-get=\"/\" hx-trigger=\"change\"><option value=\"\">All tags</option> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"input-field w-full sm:flex-grow\" placeholder=\"Search entries...\" aria-label=\"Search entries\" autocomplete=\"off\" maxlength=\"200\" hx-get=\"/\" hx-trigger=\"input changed delay:300ms\"><div class=\"grid grid-cols-2 gap-3 sm:flex sm:shrink-0\"><select name=\"tag\" class=\"input-field input-select w-full pr-10 sm:w-40\" aria-label=\"Filter by tag\" hx-get=\"/\" hx-trigger=\"change\"><option value=\"\">All tags</option> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, tag := range filter.Tags {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<option value=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(tag)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 190, Col: 24}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if tag == filter.Tag {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, " selected")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, ">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<option value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var7 string
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(tag)
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(tag)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 190, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 192, Col: 24}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</option>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</select> <select name=\"type\" class=\"input-field input-select w-full pr-10 sm:w-40\" aria-label=\"Filter by type\" hx-get=\"/\" hx-trigger=\"change\"><option value=\"\">All types</option> ")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		for _, option := range sourceTypeOptions {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<option value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(option.value))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 202, Col: 41}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if string(option.value) == filter.SourceType {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, " selected")
+			if tag == filter.Tag {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, " selected")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, ">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, ">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(option.label)
+			var templ_7745c5c3_Var8 string
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(tag)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 202, Col: 114}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 192, Col: 64}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</option>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</option>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</select></div><noscript><button type=\"submit\" class=\"btn-secondary w-full sm:w-auto h-full justify-center\">Apply</button></noscript></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</select> <select name=\"type\" class=\"input-field input-select w-full pr-10 sm:w-40\" aria-label=\"Filter by type\" hx-get=\"/\" hx-trigger=\"change\"><option value=\"\">All types</option> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, option := range sourceTypeOptions {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<option value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var9 string
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(option.value))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 204, Col: 41}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if string(option.value) == filter.SourceType {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, " selected")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, ">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var10 string
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(option.label)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 204, Col: 114}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</option>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</select></div><noscript><button type=\"submit\" class=\"btn-secondary w-full sm:w-auto h-full justify-center\">Apply</button></noscript></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -286,12 +307,12 @@ func dashboardFiltersHistoryScript() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var10 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var10 == nil {
-			templ_7745c5c3_Var10 = templ.NopComponent
+		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var11 == nil {
+			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<script>\n\t\t// htmx history snapshots keep the markup, not live input values, so\n\t\t// Back/Forward would show one filter's results under another's\n\t\t// controls. Restore the controls from the restored URL instead.\n\t\t(function () {\n\t\t\tif (window.__dashboardFiltersHistoryInitialized) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__dashboardFiltersHistoryInitialized = true;\n\n\t\t\tdocument.addEventListener('htmx:historyRestore', function() {\n\t\t\t\tconst form = document.getElementById('dashboard-filters');\n\t\t\t\tif (!form) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tconst params = new URLSearchParams(window.location.search);\n\t\t\t\tfor (const name of ['q', 'tag', 'type']) {\n\t\t\t\t\tform.elements[name].value = params.get(name) || '';\n\t\t\t\t}\n\t\t\t});\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<script>\n\t\t// htmx history snapshots keep the markup, not live input values, so\n\t\t// Back/Forward would show one filter's results under another's\n\t\t// controls. Restore the controls from the restored URL instead.\n\t\t(function () {\n\t\t\tif (window.__dashboardFiltersHistoryInitialized) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__dashboardFiltersHistoryInitialized = true;\n\n\t\t\tdocument.addEventListener('htmx:historyRestore', function() {\n\t\t\t\tconst form = document.getElementById('dashboard-filters');\n\t\t\t\tif (!form) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tconst params = new URLSearchParams(window.location.search);\n\t\t\t\tfor (const name of ['q', 'tag', 'type']) {\n\t\t\t\t\tform.elements[name].value = params.get(name) || '';\n\t\t\t\t}\n\t\t\t});\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -315,32 +336,32 @@ func CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView,
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var11 == nil {
-			templ_7745c5c3_Var11 = templ.NopComponent
+		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var12 == nil {
+			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div id=\"dashboard-entries-region\"><div class=\"flex items-center justify-between mb-4 gap-4\"><h2 class=\"font-display text-lg font-medium\" style=\"color: var(--color-ink);\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div id=\"dashboard-entries-region\"><div class=\"flex items-center justify-between mb-4 gap-4\"><h2 class=\"font-display text-lg font-medium\" style=\"color: var(--color-ink);\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if filter.Active() {
-			var templ_7745c5c3_Var12 string
-			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(matchingEntriesHeading(totalEntries))
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(matchingEntriesHeading(totalEntries))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 243, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 245, Col: 43}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "Recent Entries")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "Recent Entries")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</h2>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</h2>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -348,7 +369,7 @@ func CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView,
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div><div class=\"card overflow-hidden\"><div id=\"entry-list\" class=\"divide-y\" style=\"border-color: var(--color-warm-gray);\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</div><div class=\"card overflow-hidden\"><div id=\"entry-list\" class=\"divide-y\" style=\"border-color: var(--color-warm-gray);\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -360,12 +381,12 @@ func CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView,
 				}
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if filter.Active() && len(entries) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<div id=\"empty-state\" class=\"p-8 text-center text-sm\" style=\"color: var(--color-ink-lighter);\"><p>No entries match.</p><a href=\"/\" class=\"inline-block mt-2 text-xs hover:underline\" style=\"color: var(--color-accent);\">Clear filters</a></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div id=\"empty-state\" class=\"p-8 text-center text-sm\" style=\"color: var(--color-ink-lighter);\"><p>No entries match.</p><a href=\"/\" class=\"inline-block mt-2 text-xs hover:underline\" style=\"color: var(--color-accent);\">Clear filters</a></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -375,7 +396,7 @@ func CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView,
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div><div class=\"mt-6 flex justify-end\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</div><div class=\"mt-6 flex justify-end\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -383,7 +404,7 @@ func CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView,
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -407,120 +428,120 @@ func paginationControls(pagination ui.PaginationView) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var13 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var13 == nil {
-			templ_7745c5c3_Var13 = templ.NopComponent
+		templ_7745c5c3_Var14 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var14 == nil {
+			templ_7745c5c3_Var14 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"flex items-center gap-3 text-xs\" style=\"color: var(--color-ink-lighter);\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<div class=\"flex items-center gap-3 text-xs\" style=\"color: var(--color-ink-lighter);\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if pagination.HasPrevious {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var14 templ.SafeURL
-			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pagination.PreviousURL))
+			var templ_7745c5c3_Var15 templ.SafeURL
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pagination.PreviousURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 279, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 281, Col: 48}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "\" hx-get=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var15 string
-			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(pagination.PreviousURL)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 280, Col: 35}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" hx-get=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "\" hx-target=\"#dashboard-entries-region\" hx-select=\"#dashboard-entries-region\" hx-swap=\"outerHTML show:none\" hx-push-url=\"true\" class=\"text-xs hover:underline\" style=\"color: var(--color-accent);\">Previous</a> ")
+			var templ_7745c5c3_Var16 string
+			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(pagination.PreviousURL)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 282, Col: 35}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "\" hx-target=\"#dashboard-entries-region\" hx-select=\"#dashboard-entries-region\" hx-swap=\"outerHTML show:none\" hx-push-url=\"true\" class=\"text-xs hover:underline\" style=\"color: var(--color-accent);\">Previous</a> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<span class=\"text-xs opacity-50\">Previous</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<span class=\"text-xs opacity-50\">Previous</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<span>Page ")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var16 string
-		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", pagination.CurrentPage))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 293, Col: 56}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, " of ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<span>Page ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var17 string
-		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", pagination.TotalPages))
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", pagination.CurrentPage))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 293, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 295, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, " of ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var18 string
+		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", pagination.TotalPages))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 295, Col: 104}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if pagination.HasNext {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var18 templ.SafeURL
-			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pagination.NextURL))
+			var templ_7745c5c3_Var19 templ.SafeURL
+			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pagination.NextURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 296, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 298, Col: 44}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "\" hx-get=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var19 string
-			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(pagination.NextURL)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 297, Col: 31}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\" hx-get=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\" hx-target=\"#dashboard-entries-region\" hx-select=\"#dashboard-entries-region\" hx-swap=\"outerHTML show:none\" hx-push-url=\"true\" class=\"text-xs hover:underline\" style=\"color: var(--color-accent);\">Next</a>")
+			var templ_7745c5c3_Var20 string
+			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(pagination.NextURL)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/capture.templ`, Line: 299, Col: 31}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "\" hx-target=\"#dashboard-entries-region\" hx-select=\"#dashboard-entries-region\" hx-swap=\"outerHTML show:none\" hx-push-url=\"true\" class=\"text-xs hover:underline\" style=\"color: var(--color-accent);\">Next</a>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<span class=\"text-xs opacity-50\">Next</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<span class=\"text-xs opacity-50\">Next</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -544,12 +565,12 @@ func keyboardSubmitScript() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var20 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var20 == nil {
-			templ_7745c5c3_Var20 = templ.NopComponent
+		templ_7745c5c3_Var21 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var21 == nil {
+			templ_7745c5c3_Var21 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<script>\n\t\t// hx-boost re-runs this script on each visit; bind the document listener once.\n\t\t(function () {\n\t\t\tif (window.__captureKeyboardSubmitInitialized) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__captureKeyboardSubmitInitialized = true;\n\n\t\t\tdocument.addEventListener('keydown', function(e) {\n\t\t\t\tif (e.shiftKey && e.key === 'Enter') {\n\t\t\t\t\tconst form = document.getElementById('capture-form');\n\t\t\t\t\tif (form) {\n\t\t\t\t\t\te.preventDefault();\n\t\t\t\t\t\thtmx.trigger(form, 'submit');\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t});\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<script>\n\t\t// hx-boost re-runs this script on each visit; bind the document listener once.\n\t\t(function () {\n\t\t\tif (window.__captureKeyboardSubmitInitialized) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__captureKeyboardSubmitInitialized = true;\n\n\t\t\tdocument.addEventListener('keydown', function(e) {\n\t\t\t\tif (e.shiftKey && e.key === 'Enter') {\n\t\t\t\t\tconst form = document.getElementById('capture-form');\n\t\t\t\t\tif (form) {\n\t\t\t\t\t\te.preventDefault();\n\t\t\t\t\t\thtmx.trigger(form, 'submit');\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t});\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

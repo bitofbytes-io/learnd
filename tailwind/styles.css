@@ -86,6 +86,12 @@
 		opacity: 0.5;
 	}
 
+	/* Hide Chrome's black datalist arrow; suggestions still appear while
+	   typing. Chrome sets its display inline, so only !important wins. */
+	.input-field[list]::-webkit-calendar-picker-indicator {
+		display: none !important;
+	}
+
 	.input-url {
 		font-family: var(--font-mono);
 		font-size: 1.125rem;
