@@ -96,14 +96,14 @@ The optional Google keys are independent: omit the Gemini key to disable summari
 
 ## Metrics
 
-Learnd serves Prometheus metrics at `GET /metrics` on a separate internal listener, `METRICS_ADDR` (default `:9464`). The public router on `PORT` never serves `/metrics`, so a public Traefik route cannot expose it. Scrape the listener over the internal overlay network, and do not publish the port. Set `METRICS_ADDR=off` to disable the listener. If the address cannot be bound, Learnd logs the error and keeps serving. The listener shuts down gracefully with the app.
+Learnd serves Prometheus metrics at `GET /metrics` on a separate internal listener, `METRICS_ADDR` (default `:9464`). The public router on `PORT` never serves `/metrics`, so a public Traefik route cannot expose it. Scrape the listener over the internal overlay network, and do not publish the port. When running Learnd directly on a host, as `make run` does, set `METRICS_ADDR=127.0.0.1:9464` unless Prometheus must scrape it remotely, and restrict remote access to the monitoring network. Set `METRICS_ADDR=off` to disable the listener. If the address cannot be bound, Learnd logs the error and keeps serving. The listener shuts down gracefully with the app.
 
 | Metric | Labels | Meaning |
 | --- | --- | --- |
 | `http_requests_total`, `http_request_duration_seconds` | `method`, `route`, `code` | Requests and latency on the public router. `route` is the chi route pattern, such as `/entries/{id}/edit`, or `unmatched`. `/health`, `/ready` and `/metrics` are not recorded |
 | `pgxpool_*` | none | Database pool stats: acquired, idle, total and max connections, acquire counts and wait time |
 | `learnd_login_failures_total` | `reason` | Rejected credentials: `invalid_key`, `missing_key` and `invalid_request` from the login form, `invalid_bearer_token` for API clients, and `invalid_cookie` for stale browser sessions |
-| `learnd_jobs_total` | `job`, `result` | Background jobs by `job` (`enrichment` or `summary`) and `result` (`success`, `failure`, or `skipped` for a summary with nothing to summarize). Jobs returned to pending at shutdown, or discarded after a refresh, are not counted |
+| `learnd_jobs_total` | `job`, `result` | Background jobs by `job` (`enrichment` or `summary`) and `result` (`success`, `failure` once the job is marked failed, or `skipped` for a summary with nothing to summarize). Jobs returned to pending at shutdown, discarded after a refresh, or left leased for retry by a database error are not counted |
 
 Go runtime (`go_*`) and process (`process_*`) metrics are also exported.
 
