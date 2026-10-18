@@ -126,6 +126,91 @@ func TestGetReportAggregatesEntriesInRange(t *testing.T) {
 	}
 }
 
+// reportWeekTitles returns the tooltips of the weekly chart's bars.
+func reportWeekTitles(body string) []string {
+	var titles []string
+	for _, m := range regexp.MustCompile(`<title>(Week of [^<]+)</title>`).FindAllStringSubmatch(body, -1) {
+		titles = append(titles, m[1])
+	}
+	return titles
+}
+
+func TestGetReportChartsTimeByWeekInConfiguredZone(t *testing.T) {
+	h, pool := newReportTestHandler(t)
+	at := func(s string) time.Time {
+		v, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	seedReportEntries(t, pool,
+		reportSeed{createdAt: at("2026-03-03T16:00:00Z"), url: "https://example.test/tue", timeSpent: intPtr(600)},
+		// Monday in UTC but Sunday 23:30 EDT, so it belongs to the week of March 2.
+		reportSeed{createdAt: at("2026-03-09T03:30:00Z"), url: "https://example.test/sunday-night", runtimeSeconds: intPtr(1200)},
+		reportSeed{createdAt: at("2026-03-10T16:00:00Z"), url: "https://example.test/next-week", timeSpent: intPtr(3600)},
+		reportSeed{createdAt: at("2026-03-24T16:00:00Z"), url: "https://example.test/untimed"},
+		reportSeed{createdAt: at("2026-04-01T16:00:00Z"), url: "https://example.test/after", timeSpent: intPtr(600)},
+	)
+
+	rec := serveReport(h.GetReport, "/api/reports?start=2026-03-04&end=2026-03-29")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GetReport() status = %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	// The range starts on a Wednesday, so the first week only counts Mar 4-8;
+	// the untimed week of Mar 23 gets no bar.
+	want := []string{"Week of Mar 2: 20 min, 1 entry", "Week of Mar 9: 1 hr, 1 entry"}
+	if got := reportWeekTitles(body); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("week bars = %q, want %q", got, want)
+	}
+	for _, label := range []string{">Mar 2<", ">Mar 9<", ">Mar 16<", ">Mar 23<"} {
+		if !strings.Contains(body, label) {
+			t.Fatalf("GetReport() body missing week label %s", label)
+		}
+	}
+	if strings.Contains(body, ">Mar 30<") {
+		t.Fatal("GetReport() charted a week after the range")
+	}
+}
+
+func TestGetReportShowsNoChartWithoutTrackedTime(t *testing.T) {
+	h, pool := newReportTestHandler(t)
+	seedReportEntries(t, pool, reportSeed{createdAt: midday("2026-03-10"), url: "https://example.test/untimed"})
+
+	body := serveReport(h.GetReport, "/api/reports?start=2026-03-09&end=2026-03-15").Body.String()
+
+	if strings.Contains(body, "<svg") || !strings.Contains(body, "No time tracked in this range.") {
+		t.Fatalf("GetReport() body without tracked time: %s", body)
+	}
+}
+
+func TestGetReportCountsDaysLearnedThisMonth(t *testing.T) {
+	h, pool := newReportTestHandler(t)
+	now := time.Now().In(h.loc)
+	year, month, day := now.Date()
+	firstOfMonth := time.Date(year, month, 1, 12, 0, 0, 0, h.loc)
+	seedReportEntries(t, pool,
+		reportSeed{createdAt: now, url: "https://example.test/today"},
+		reportSeed{createdAt: now.Add(-time.Second), url: "https://example.test/today-again"},
+		reportSeed{createdAt: firstOfMonth, url: "https://example.test/first"},
+		reportSeed{createdAt: time.Date(year, month, 1, 0, 0, 0, 0, h.loc).Add(-time.Minute), url: "https://example.test/last-month"},
+	)
+	wantDays := 2
+	if day == 1 {
+		wantDays = 1 // today is the first of the month
+	}
+
+	// The count covers this month whatever range the report shows.
+	body := serveReport(h.GetReport, "/api/reports?start=2026-03-01&end=2026-03-07").Body.String()
+
+	want := fmt.Sprintf(`Learned on <span class="font-medium" style="color: var(--color-ink);">%d</span> of %d days this month`, wantDays, day)
+	if !strings.Contains(body, want) {
+		t.Fatalf("GetReport() body missing %q: %s", want, body)
+	}
+}
+
 func TestReportEndpointsRejectInvalidDates(t *testing.T) {
 	h := NewReportHandler(nil, time.UTC)
 	for _, target := range []string{"?start=2026-13-01", "?end=yesterday", "?start=03/10/2026&end=2026-03-11"} {

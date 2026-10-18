@@ -30,6 +30,13 @@ type TypeReport struct {
 	Time      int // in minutes
 }
 
+// WeekReport represents tracked time for one Monday-start week
+type WeekReport struct {
+	Label string // the week's Monday, e.g. "Oct 5"
+	Count int
+	Time  int // in minutes
+}
+
 // ReportData contains all data needed to render the report results
 type ReportData struct {
 	Start          string
@@ -42,6 +49,106 @@ type ReportData struct {
 	TotalTypeTime    int // in minutes
 	ByTag          []TagReport
 	ByType         []TypeReport
+	ByWeek         []WeekReport
+	ByWeekTrimmed  bool // ByWeek covers only the range's last weeks
+	DaysLearned    int  // days with an entry so far this month
+	DaysThisMonth  int  // days so far this month, including today
+}
+
+// Weekly chart geometry, in SVG user units. The chart stretches to its
+// container, so each week is a slot of equal width holding a centered bar.
+const (
+	weekSlotWidth   = 10
+	weekBarWidth    = 6
+	weekChartHeight = 100
+	// maxLabeledWeeks is the most weeks that fit a label under each bar on a
+	// phone; longer charts label only their first and last weeks.
+	maxLabeledWeeks = 7
+)
+
+func maxWeekTime(weeks []WeekReport) int {
+	peak := 0
+	for _, week := range weeks {
+		peak = max(peak, week.Time)
+	}
+	return peak
+}
+
+func weekChartViewBox(weeks []WeekReport) string {
+	return fmt.Sprintf("0 0 %d %d", len(weeks)*weekSlotWidth, weekChartHeight)
+}
+
+func weekBarX(i int) string {
+	return fmt.Sprintf("%d", i*weekSlotWidth+(weekSlotWidth-weekBarWidth)/2)
+}
+
+// weekBarHeight scales minutes against the peak week, keeping any tracked
+// time visible as at least a sliver.
+func weekBarHeight(minutes, peak int) float64 {
+	return max(float64(minutes*weekChartHeight)/float64(peak), 1)
+}
+
+func weekBarTitle(week WeekReport) string {
+	entries := "entries"
+	if week.Count == 1 {
+		entries = "entry"
+	}
+	return fmt.Sprintf("Week of %s: %s, %d %s", week.Label, formatDuration(week.Time), week.Count, entries)
+}
+
+templ weeklyChart(data ReportData) {
+	<div class="card p-4 sm:p-6">
+		<div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-4">
+			<h3 class="font-display font-medium" style="color: var(--color-ink);">Time by Week</h3>
+			<p class="text-xs" style="color: var(--color-ink-lighter);">
+				Learned on <span class="font-medium" style="color: var(--color-ink);">{ fmt.Sprintf("%d", data.DaysLearned) }</span> of { fmt.Sprintf("%d", data.DaysThisMonth) } days this month
+			</p>
+		</div>
+		if peak := maxWeekTime(data.ByWeek); peak > 0 {
+			<div class="text-xs mb-1" style="color: var(--color-ink-lighter);">{ formatDuration(peak) }</div>
+			<svg
+				viewBox={ weekChartViewBox(data.ByWeek) }
+				preserveAspectRatio="none"
+				class="block w-full h-32"
+				style="border-top: 1px dashed var(--color-warm-gray); border-bottom: 1px solid var(--color-warm-gray);"
+				role="img"
+				aria-label="Time tracked per week"
+			>
+				for i, week := range data.ByWeek {
+					if week.Time > 0 {
+						<rect
+							x={ weekBarX(i) }
+							y={ fmt.Sprintf("%g", weekChartHeight-weekBarHeight(week.Time, peak)) }
+							width={ fmt.Sprintf("%d", weekBarWidth) }
+							height={ fmt.Sprintf("%g", weekBarHeight(week.Time, peak)) }
+							style="fill: var(--color-accent);"
+						>
+							<title>{ weekBarTitle(week) }</title>
+						</rect>
+					}
+				}
+			</svg>
+			if len(data.ByWeek) <= maxLabeledWeeks {
+				<div class="flex mt-2 text-xs" style="color: var(--color-ink-lighter);">
+					for _, week := range data.ByWeek {
+						<span class="flex-1 min-w-0 text-center whitespace-nowrap">{ week.Label }</span>
+					}
+				</div>
+			} else {
+				<div class="flex justify-between mt-2 text-xs" style="color: var(--color-ink-lighter);">
+					<span>{ data.ByWeek[0].Label }</span>
+					<span>{ data.ByWeek[len(data.ByWeek)-1].Label }</span>
+				</div>
+			}
+			if data.ByWeekTrimmed {
+				<p class="text-xs mt-3 text-center" style="color: var(--color-ink-lighter);">
+					Showing the last { fmt.Sprintf("%d", len(data.ByWeek)) } weeks.
+				</p>
+			}
+		} else {
+			<p class="text-sm text-center py-8" style="color: var(--color-ink-lighter);">No time tracked in this range.</p>
+		}
+	</div>
 }
 
 templ ReportResults(data ReportData) {
@@ -81,6 +188,9 @@ templ ReportResults(data ReportData) {
 				</div>
 			</div>
 		</div>
+
+		<!-- By Week -->
+		@weeklyChart(data)
 
 	<!-- By Tag -->
 	if len(data.ByTag) > 0 {

@@ -477,6 +477,64 @@ func (r *EntryRepository) GetReportTotals(ctx context.Context, start, end time.T
 	return &totals, nil
 }
 
+// WeekAggregation represents aggregated stats for one calendar week
+type WeekAggregation struct {
+	WeekStart   time.Time // the week's Monday, as a UTC midnight
+	Count       int
+	TimeSeconds int
+}
+
+// AggregateByWeek returns entry counts and time per Monday-start week, in
+// the IANA zone tz, for entries created in [start, end). Weeks without
+// entries are omitted.
+func (r *EntryRepository) AggregateByWeek(ctx context.Context, start, end time.Time, tz string) ([]WeekAggregation, error) {
+	query := `
+		SELECT date_trunc('week', created_at AT TIME ZONE $3)::date AS week, COUNT(*),
+		       COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
+		FROM entries
+		WHERE created_at >= $1 AND created_at < $2
+		GROUP BY week
+		ORDER BY week
+	`
+
+	rows, err := r.pool.Query(ctx, query, start, end, tz)
+	if err != nil {
+		return nil, fmt.Errorf("failed to aggregate by week: %w", err)
+	}
+	defer rows.Close()
+
+	var results []WeekAggregation
+	for rows.Next() {
+		var agg WeekAggregation
+		if err := rows.Scan(&agg.WeekStart, &agg.Count, &agg.TimeSeconds); err != nil {
+			return nil, fmt.Errorf("failed to scan week aggregation: %w", err)
+		}
+		results = append(results, agg)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return results, nil
+}
+
+// CountActiveDays returns how many calendar days, in the IANA zone tz, have
+// at least one entry created in [start, end)
+func (r *EntryRepository) CountActiveDays(ctx context.Context, start, end time.Time, tz string) (int, error) {
+	query := `
+		SELECT COUNT(DISTINCT (created_at AT TIME ZONE $3)::date)
+		FROM entries
+		WHERE created_at >= $1 AND created_at < $2
+	`
+
+	var days int
+	if err := r.pool.QueryRow(ctx, query, start, end, tz).Scan(&days); err != nil {
+		return 0, fmt.Errorf("failed to count active days: %w", err)
+	}
+
+	return days, nil
+}
+
 // entryColumns lists the entry columns in the order scanEntry reads them.
 const entryColumns = `id, created_at, updated_at, source_url, normalized_url, tag, time_spent_seconds, quantity, notes,
 	canonical_url, domain, source_type, title, description, published_at, runtime_seconds, metadata_json,
