@@ -114,7 +114,7 @@ func ReportsPage(startDate, endDate, bookmarklet string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if bookmarklet != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<p class=\"hidden sm:flex items-center justify-center gap-2 mt-12 text-sm\" style=\"color: var(--color-ink-lighter);\">Capture from any tab: drag <a id=\"bookmarklet\" href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<p class=\"hidden sm:flex items-center justify-center gap-2 mt-12 text-sm\" style=\"color: var(--color-ink-lighter);\">Desktop capture: drag <a id=\"bookmarklet\" href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

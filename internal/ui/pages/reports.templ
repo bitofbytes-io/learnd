@@ -81,7 +81,7 @@ templ ReportsPage(startDate, endDate, bookmarklet string) {
 				<!-- Bookmarklet: a desktop drag target, so it stays hidden on phones -->
 				if bookmarklet != "" {
 					<p class="hidden sm:flex items-center justify-center gap-2 mt-12 text-sm" style="color: var(--color-ink-lighter);">
-						Capture from any tab: drag
+						Desktop capture: drag
 						<a
 							id="bookmarklet"
 							href={ templ.SafeURL(bookmarklet) }
