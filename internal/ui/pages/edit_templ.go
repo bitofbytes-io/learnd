@@ -357,20 +357,20 @@ func EditPage(entry ui.EntryView, returnTo string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<span>Re-summarize</span></button></div><!-- Main actions (right side) --><div class=\"flex items-center gap-3 w-full sm:w-auto sm:ml-auto\"><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<span>Re-summarize</span></button></div><!-- Main actions (right side) --><div class=\"flex items-center gap-3 w-full sm:w-auto sm:ml-auto\"><!-- Not boosted: it would inherit the form's hx-swap=\"none\" and never leave the page. --><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var19 templ.SafeURL
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(returnTo))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/edit.templ`, Line: 240, Col: 39}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/edit.templ`, Line: 241, Col: 39}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\" class=\"btn-secondary flex-1 sm:flex-initial flex items-center justify-center\">Cancel</a> <button type=\"submit\" class=\"btn-primary flex-1 sm:flex-initial relative flex items-center justify-center pl-6\"><span class=\"htmx-indicator\"><span class=\"animate-spin inline-block\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\" hx-boost=\"false\" class=\"btn-secondary flex-1 sm:flex-initial flex items-center justify-center\">Cancel</a> <button type=\"submit\" class=\"btn-primary flex-1 sm:flex-initial relative flex items-center justify-center pl-6\"><span class=\"htmx-indicator\"><span class=\"animate-spin inline-block\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

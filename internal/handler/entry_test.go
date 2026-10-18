@@ -641,7 +641,7 @@ func TestEditPage(t *testing.T) {
 		{
 			name:  "valid entry returns 200",
 			id:    "550e8400-e29b-41d4-a716-446655440000",
-			query: "?return_to=%2F%3Fpage%3D2",
+			query: "?return_to=%2F%3Fpage%3D2%26q%3Dgo%26tag%3Dai",
 			mockSetup: func(m *mockEntryRepo) {
 				id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 				m.getByIDFn = func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) {
@@ -714,8 +714,12 @@ func TestEditPage(t *testing.T) {
 			}
 			if tt.expectedStatus == http.StatusOK {
 				body := rec.Body.String()
-				if tt.query == "?return_to=%2F%3Fpage%3D2" {
-					for _, want := range []string{`href="/?page=2"`, `data-return-to="/?page=2"`, `evt.detail.elt === editForm && evt.detail.successful`} {
+				if tt.query != "" {
+					for _, want := range []string{
+						`href="/?page=2&amp;q=go&amp;tag=ai" hx-boost="false"`,
+						`data-return-to="/?page=2&amp;q=go&amp;tag=ai"`,
+						`evt.detail.elt === editForm && evt.detail.successful`,
+					} {
 						if !strings.Contains(body, want) {
 							t.Errorf("EditPage() body = %q, want to contain %q", body, want)
 						}

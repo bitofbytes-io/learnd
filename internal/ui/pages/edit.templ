@@ -236,8 +236,10 @@ templ EditPage(entry ui.EntryView, returnTo string) {
 
 							<!-- Main actions (right side) -->
 							<div class="flex items-center gap-3 w-full sm:w-auto sm:ml-auto">
+								<!-- Not boosted: it would inherit the form's hx-swap="none" and never leave the page. -->
 								<a
 									href={ templ.SafeURL(returnTo) }
+									hx-boost="false"
 									class="btn-secondary flex-1 sm:flex-initial flex items-center justify-center"
 								>
 									Cancel
