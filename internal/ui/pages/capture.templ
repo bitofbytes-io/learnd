@@ -147,7 +147,8 @@ templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter u
 
 // dashboardFilters sits outside the entries region so typing in the search
 // box keeps focus while the region below is swapped. Changing a filter
-// starts again from page 1.
+// starts again from page 1. The controls share one request queue so a slow
+// response cannot overwrite a newer one.
 templ dashboardFilters(filter ui.DashboardFilter) {
 	<form
 		id="dashboard-filters"
@@ -161,6 +162,7 @@ templ dashboardFilters(filter ui.DashboardFilter) {
 		hx-swap="outerHTML show:none"
 		hx-push-url="true"
 		hx-include="#dashboard-filters"
+		hx-sync="this:replace"
 	>
 		<input
 			type="search"
@@ -201,7 +203,36 @@ templ dashboardFilters(filter ui.DashboardFilter) {
 				}
 			</select>
 		</div>
+		<noscript>
+			<button type="submit" class="btn-secondary w-full sm:w-auto h-full justify-center">Apply</button>
+		</noscript>
 	</form>
+	@dashboardFiltersHistoryScript()
+}
+
+templ dashboardFiltersHistoryScript() {
+	<script>
+		// htmx history snapshots keep the markup, not live input values, so
+		// Back/Forward would show one filter's results under another's
+		// controls. Restore the controls from the restored URL instead.
+		(function () {
+			if (window.__dashboardFiltersHistoryInitialized) {
+				return;
+			}
+			window.__dashboardFiltersHistoryInitialized = true;
+
+			document.addEventListener('htmx:historyRestore', function() {
+				const form = document.getElementById('dashboard-filters');
+				if (!form) {
+					return;
+				}
+				const params = new URLSearchParams(window.location.search);
+				for (const name of ['q', 'tag', 'type']) {
+					form.elements[name].value = params.get(name) || '';
+				}
+			});
+		})();
+	</script>
 }
 
 templ CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView, filter ui.DashboardFilter, totalEntries int) {

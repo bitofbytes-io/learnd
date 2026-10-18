@@ -345,6 +345,9 @@ func TestCapturePageAppliesSearchAndFilters(t *testing.T) {
 		`<option value="go" selected>go</option>`,
 		`<option value="ai">ai</option>`,
 		`<option value="youtube" selected>YouTube</option>`,
+		`hx-sync="this:replace"`,
+		`<noscript><button type="submit"`,
+		"htmx:historyRestore",
 		"45 matching entries",
 	} {
 		if !strings.Contains(body, want) {
