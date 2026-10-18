@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -59,6 +60,63 @@ func TestCapturePageUsesPageOffsetAndRendersPagination(t *testing.T) {
 	}
 	if got := strings.Count(body, "Page 2 of 3"); got != 2 {
 		t.Fatalf("CapturePage() page indicator count = %d, want 2", got)
+	}
+}
+
+func TestCapturePagePrefillsURLFromSharedText(t *testing.T) {
+	mock := &mockEntryRepo{
+		listFn: func(_ context.Context, opts repository.ListOptions) ([]model.Entry, error) {
+			return nil, nil
+		},
+		countFn: func(_ context.Context) (int, error) {
+			return 0, nil
+		},
+	}
+
+	handler := NewCaptureHandler(mock, false)
+	req := httptest.NewRequest(http.MethodGet, "/?text=Check+this+https://x.com/a", nil)
+	rec := httptest.NewRecorder()
+
+	handler.CapturePage(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("CapturePage() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, `value="https://x.com/a"`) {
+		t.Fatalf("CapturePage() body missing shared URL prefill")
+	}
+}
+
+func TestSharedPrefillURL(t *testing.T) {
+	tests := []struct {
+		name  string
+		query url.Values
+		want  string
+	}{
+		{name: "url param", query: url.Values{"url": {"https://example.com/a"}}, want: "https://example.com/a"},
+		{name: "url param wins over text", query: url.Values{"url": {"https://example.com/a"}, "text": {"see https://example.com/b"}}, want: "https://example.com/a"},
+		{name: "link in text", query: url.Values{"text": {"Check this https://x.com/a"}}, want: "https://x.com/a"},
+		{name: "link on its own line", query: url.Values{"title": {"A post"}, "text": {"A post\nhttps://x.com/a"}}, want: "https://x.com/a"},
+		{name: "trailing punctuation trimmed", query: url.Values{"text": {"Read https://x.com/a."}}, want: "https://x.com/a"},
+		{name: "parenthesized link", query: url.Values{"text": {"Read (https://x.com/a)."}}, want: "https://x.com/a"},
+		{name: "angle-bracketed link", query: url.Values{"text": {"<https://x.com/a>"}}, want: "https://x.com/a"},
+		{name: "quoted link", query: url.Values{"text": {"“https://x.com/a”"}}, want: "https://x.com/a"},
+		{name: "balanced paren in link kept", query: url.Values{"text": {"See https://en.wikipedia.org/wiki/Go_(programming_language)"}}, want: "https://en.wikipedia.org/wiki/Go_(programming_language)"},
+		{name: "wrapped link with inner paren", query: url.Values{"text": {"(https://en.wikipedia.org/wiki/Go_(programming_language))"}}, want: "https://en.wikipedia.org/wiki/Go_(programming_language)"},
+		{name: "invalid url falls back to text", query: url.Values{"url": {"not a url"}, "text": {"https://x.com/a"}}, want: "https://x.com/a"},
+		{name: "skips unsafe link in text", query: url.Values{"text": {"http://localhost/x then https://x.com/a"}}, want: "https://x.com/a"},
+		{name: "text without link", query: url.Values{"text": {"just words"}}, want: ""},
+		{name: "unsafe url dropped", query: url.Values{"url": {"http://127.0.0.1/admin"}}, want: ""},
+		{name: "non-http scheme dropped", query: url.Values{"text": {"httpfoo:bar"}}, want: ""},
+		{name: "empty", query: url.Values{}, want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sharedPrefillURL(tt.query); got != tt.want {
+				t.Fatalf("sharedPrefillURL(%v) = %q, want %q", tt.query, got, tt.want)
+			}
+		})
 	}
 }
 
