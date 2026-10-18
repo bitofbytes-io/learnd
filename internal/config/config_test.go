@@ -48,4 +48,11 @@ func TestLoadAppTimezone(t *testing.T) {
 			t.Fatalf("Load() error = %v, want APP_TIMEZONE error", err)
 		}
 	})
+
+	t.Run("rejects Go's host zone name", func(t *testing.T) {
+		t.Setenv("APP_TIMEZONE", "Local")
+		if _, err := Load(); err == nil || !strings.Contains(err.Error(), "APP_TIMEZONE") {
+			t.Fatalf("Load() error = %v, want APP_TIMEZONE error", err)
+		}
+	})
 }

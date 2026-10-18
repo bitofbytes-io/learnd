@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -97,6 +98,79 @@ func TestBuildTagReport(t *testing.T) {
 		if report[i] != want[i] {
 			t.Fatalf("report[%d] = %+v, want %+v", i, report[i], want[i])
 		}
+	}
+}
+
+func TestBuildWeekReportFillsEmptyWeeks(t *testing.T) {
+	rng, err := parseReportRange(url.Values{"start": {"2026-09-17"}, "end": {"2026-10-07"}}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	aggs := []repository.WeekAggregation{
+		{WeekStart: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC), Count: 2, TimeSeconds: 61},
+		{WeekStart: time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC), Count: 1, TimeSeconds: 3600},
+	}
+
+	got := buildWeekReport(rng, aggs)
+
+	// Sep 17 is a Thursday, so the first week starts on Monday, Sep 14.
+	want := []partials.WeekReport{
+		{Label: "Sep 14", Count: 2, Time: 2},
+		{Label: "Sep 21"},
+		{Label: "Sep 28"},
+		{Label: "Oct 5", Count: 1, Time: 60},
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("buildWeekReport() = %+v, want %+v", got, want)
+	}
+
+	rng.First, rng.Last = rng.Last, rng.First
+	if got := buildWeekReport(rng, nil); len(got) != 0 {
+		t.Fatalf("buildWeekReport() for an inverted range = %+v, want no weeks", got)
+	}
+}
+
+func TestWeeklyChartRangeKeepsTheLastWeeks(t *testing.T) {
+	today := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+
+	short, err := parseReportRange(url.Values{"start": {"2025-01-01"}, "end": {"2026-10-18"}}, today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, trimmed := weeklyChartRange(short, time.UTC); trimmed || got != short {
+		t.Fatalf("weeklyChartRange() trimmed a %d-week range", len(buildWeekReport(short, nil)))
+	}
+
+	long, err := parseReportRange(url.Values{"start": {"2000-01-01"}, "end": {"2026-10-18"}}, today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, trimmed := weeklyChartRange(long, time.UTC)
+	if !trimmed {
+		t.Fatal("weeklyChartRange() did not trim a 26-year range")
+	}
+	if weeks := buildWeekReport(got, nil); len(weeks) != maxChartWeeks || weeks[len(weeks)-1].Label != "Oct 12" {
+		t.Fatalf("trimmed chart has %d weeks ending %+v, want %d ending Oct 12", len(weeks), weeks[len(weeks)-1], maxChartWeeks)
+	}
+	if !got.Start.Equal(got.First) || got.StartDate != got.First.Format(reportDateLayout) || got.End != long.End {
+		t.Fatalf("trimmed range = %+v", got)
+	}
+}
+
+func TestMonthToDate(t *testing.T) {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start, end := monthToDate(time.Date(2026, 10, 31, 23, 30, 0, 0, loc))
+
+	if want := time.Date(2026, 10, 1, 4, 0, 0, 0, time.UTC); !start.Equal(want) {
+		t.Fatalf("start = %s, want %s", start.UTC(), want)
+	}
+	// The month's last day runs to midnight on November 1, still EDT.
+	if want := time.Date(2026, 11, 1, 4, 0, 0, 0, time.UTC); !end.Equal(want) {
+		t.Fatalf("end = %s, want %s", end.UTC(), want)
 	}
 }
 

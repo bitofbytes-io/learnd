@@ -23,6 +23,7 @@ import (
 type ReportHandler struct {
 	entryRepo *repository.EntryRepository
 	loc       *time.Location
+	now       func() time.Time // the clock "this month" is read from; tests replace it
 }
 
 // NewReportHandler creates a new ReportHandler. Report dates are calendar
@@ -31,6 +32,7 @@ func NewReportHandler(entryRepo *repository.EntryRepository, loc *time.Location)
 	return &ReportHandler{
 		entryRepo: entryRepo,
 		loc:       loc,
+		now:       time.Now,
 	}
 }
 
@@ -63,6 +65,7 @@ const reportDateLayout = "2006-01-02"
 // reportRange is a span of whole calendar days.
 type reportRange struct {
 	StartDate, EndDate string    // inclusive, as YYYY-MM-DD
+	First, Last        time.Time // StartDate and EndDate as UTC midnights
 	Start, End         time.Time // End is exclusive: midnight after EndDate
 }
 
@@ -83,9 +86,64 @@ func parseReportRange(query url.Values, today time.Time) (reportRange, error) {
 	if err != nil {
 		return reportRange{}, errors.New("Invalid end date")
 	}
+	rng.First, rng.Last = first, last
 	rng.Start = startOfDay(first, today.Location())
 	rng.End = startOfDay(last.AddDate(0, 0, 1), today.Location())
 	return rng, nil
+}
+
+// maxChartWeeks caps the weekly chart; longer ranges chart their last weeks.
+const maxChartWeeks = 104
+
+// weekStart returns the Monday on or before date (a UTC midnight), matching
+// PostgreSQL's date_trunc('week', ...).
+func weekStart(date time.Time) time.Time {
+	return date.AddDate(0, 0, -((int(date.Weekday()) + 6) % 7))
+}
+
+// weeklyChartRange returns rng trimmed to its last maxChartWeeks weeks, and
+// whether it was trimmed.
+func weeklyChartRange(rng reportRange, loc *time.Location) (reportRange, bool) {
+	first := weekStart(rng.Last).AddDate(0, 0, -7*(maxChartWeeks-1))
+	if !rng.First.Before(first) {
+		return rng, false
+	}
+	rng.First = first
+	rng.StartDate = first.Format(reportDateLayout)
+	rng.Start = startOfDay(first, loc)
+	return rng, true
+}
+
+// buildWeekReport returns one row per week from rng's first week through its
+// last, including weeks without entries.
+func buildWeekReport(rng reportRange, weekAggs []repository.WeekAggregation) []partials.WeekReport {
+	byWeek := make(map[string]repository.WeekAggregation, len(weekAggs))
+	for _, agg := range weekAggs {
+		byWeek[agg.WeekStart.Format(reportDateLayout)] = agg
+	}
+
+	var weeks []partials.WeekReport
+	if rng.Last.Before(rng.First) {
+		return weeks
+	}
+	for week := weekStart(rng.First); !week.After(rng.Last); week = week.AddDate(0, 0, 7) {
+		agg := byWeek[week.Format(reportDateLayout)]
+		weeks = append(weeks, partials.WeekReport{
+			Label: week.Format("Jan 2"),
+			Count: agg.Count,
+			Time:  minutesFromSeconds(agg.TimeSeconds),
+		})
+	}
+	return weeks
+}
+
+// monthToDate returns the span from the first of today's month through the
+// end of today, in today's location.
+func monthToDate(today time.Time) (time.Time, time.Time) {
+	year, month, day := today.Date()
+	first := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
+	tomorrow := time.Date(year, month, day+1, 0, 0, 0, 0, time.UTC)
+	return startOfDay(first, today.Location()), startOfDay(tomorrow, today.Location())
 }
 
 // startOfDay returns the first instant in loc whose calendar date is date's
@@ -106,8 +164,9 @@ func startOfDay(date time.Time, loc *time.Location) time.Time {
 // GetReport generates a report for the specified date range
 func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	today := h.now().In(h.loc)
 
-	rng, err := parseReportRange(r.URL.Query(), time.Now().In(h.loc))
+	rng, err := parseReportRange(r.URL.Query(), today)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -137,6 +196,24 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get weekly time for the chart, in the report's zone
+	chartRange, chartTrimmed := weeklyChartRange(rng, h.loc)
+	weekAggs, err := h.entryRepo.AggregateByWeek(ctx, chartRange.Start, chartRange.End, h.loc.String())
+	if err != nil {
+		slog.Error("failed to aggregate by week", "handler", "GetReport", "error", err)
+		http.Error(w, "Failed to get report", http.StatusInternalServerError)
+		return
+	}
+
+	// Count the days learned so far this month, whatever the range
+	monthStart, monthEnd := monthToDate(today)
+	daysLearned, err := h.entryRepo.CountActiveDays(ctx, monthStart, monthEnd, h.loc.String())
+	if err != nil {
+		slog.Error("failed to count active days", "handler", "GetReport", "error", err)
+		http.Error(w, "Failed to get report", http.StatusInternalServerError)
+		return
+	}
+
 	tagReport, totalTagEntries, totalTagTime := buildTagReport(tagAggs)
 	typeReport, totalTypeEntries, totalTypeTime := buildTypeReport(typeAggs)
 
@@ -151,6 +228,10 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 		TotalTypeTime:    totalTypeTime,
 		ByTag:            tagReport,
 		ByType:           typeReport,
+		ByWeek:           buildWeekReport(chartRange, weekAggs),
+		ByWeekTrimmed:    chartTrimmed,
+		DaysLearned:      daysLearned,
+		DaysThisMonth:    today.Day(),
 	}
 
 	slog.Info("report generated", "start", data.Start, "end", data.End, "total_entries", data.TotalEntries)
