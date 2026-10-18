@@ -47,6 +47,7 @@ Do not commit this file.
 | `PORT` | No | HTTP port; defaults to `4500` |
 | `SECURE_COOKIES` | No | Set `false` for local HTTP; defaults to `true` |
 | `LOG_LEVEL` | No | Application log level; defaults to `info` |
+| `METRICS_ADDR` | No | Address of the internal Prometheus listener; defaults to `:9464`, and `off` disables it. See [Metrics](#metrics) |
 | `APP_TIMEZONE` | No | IANA time zone that decides which calendar day an entry falls on in reports and CSV exports; defaults to `America/New_York`. Time zone data is built into the binary |
 | `GEMINI_API_KEY` | No | Enables AI-generated summaries |
 | `GEMINI_MODEL` | No | Gemini model name; defaults to `gemini-3.1-flash-lite` |
@@ -92,6 +93,19 @@ docker run --rm --name learnd --network learnd \
 Open <http://localhost:4500> and sign in with the configured `API_TOKEN`. Neither probe needs auth: <http://localhost:4500/health> returns `ok` while the process is up, and <http://localhost:4500/ready> pings the database (2 s timeout, one ping at a time, result reused for 1 s) and returns `{"status":"ok","db":"ok"}`, or HTTP 503 with `{"status":"degraded","db":"error"}` when the database is unreachable.
 
 The optional Google keys are independent: omit the Gemini key to disable summaries, or omit the YouTube key to disable YouTube-specific enrichment. For production, restrict enabled keys to their intended APIs and load them from a secret manager.
+
+## Metrics
+
+Learnd serves Prometheus metrics at `GET /metrics` on a separate internal listener, `METRICS_ADDR` (default `:9464`). The public router on `PORT` never serves `/metrics`, so a public Traefik route cannot expose it. Scrape the listener over the internal overlay network, and do not publish the port. Set `METRICS_ADDR=off` to disable the listener. If the address cannot be bound, Learnd logs the error and keeps serving. The listener shuts down gracefully with the app.
+
+| Metric | Labels | Meaning |
+| --- | --- | --- |
+| `http_requests_total`, `http_request_duration_seconds` | `method`, `route`, `code` | Requests and latency on the public router. `route` is the chi route pattern, such as `/entries/{id}/edit`, or `unmatched`. `/health`, `/ready` and `/metrics` are not recorded |
+| `pgxpool_*` | none | Database pool stats: acquired, idle, total and max connections, acquire counts and wait time |
+| `learnd_login_failures_total` | `reason` | Rejected credentials: `invalid_key`, `missing_key` and `invalid_request` from the login form, `invalid_bearer_token` for API clients, and `invalid_cookie` for stale browser sessions |
+| `learnd_jobs_total` | `job`, `result` | Background jobs by `job` (`enrichment` or `summary`) and `result` (`success`, `failure`, or `skipped` for a summary with nothing to summarize). Jobs returned to pending at shutdown, or discarded after a refresh, are not counted |
+
+Go runtime (`go_*`) and process (`process_*`) metrics are also exported.
 
 ## Development
 
