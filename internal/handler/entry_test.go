@@ -484,6 +484,8 @@ type mockEntryRepo struct {
 	deleteFn                          func(ctx context.Context, id uuid.UUID) error
 	listFn                            func(ctx context.Context, opts repository.ListOptions) ([]model.Entry, error)
 	countFn                           func(ctx context.Context) (int, error)
+	countFilteredFn                   func(ctx context.Context, opts repository.ListOptions) (int, error)
+	listTagsFn                        func(ctx context.Context) ([]string, error)
 	getLatestByNormalizedURLFn        func(ctx context.Context, normalizedURL string) (*repository.DuplicateEntry, error)
 	countByNormalizedURLFn            func(ctx context.Context, normalizedURL string) (int, error)
 	getDuplicateCountsByNormalizedURL func(ctx context.Context, normalizedURLs []string) (map[string]int, error)
@@ -536,6 +538,20 @@ func (m *mockEntryRepo) Count(ctx context.Context) (int, error) {
 		return m.countFn(ctx)
 	}
 	return 0, nil
+}
+
+func (m *mockEntryRepo) CountFiltered(ctx context.Context, opts repository.ListOptions) (int, error) {
+	if m.countFilteredFn != nil {
+		return m.countFilteredFn(ctx, opts)
+	}
+	return 0, nil
+}
+
+func (m *mockEntryRepo) ListTags(ctx context.Context) ([]string, error) {
+	if m.listTagsFn != nil {
+		return m.listTagsFn(ctx)
+	}
+	return nil, nil
 }
 
 func (m *mockEntryRepo) GetLatestByNormalizedURL(ctx context.Context, normalizedURL string) (*repository.DuplicateEntry, error) {
@@ -625,7 +641,7 @@ func TestEditPage(t *testing.T) {
 		{
 			name:  "valid entry returns 200",
 			id:    "550e8400-e29b-41d4-a716-446655440000",
-			query: "?return_to=%2F%3Fpage%3D2",
+			query: "?return_to=%2F%3Fpage%3D2%26q%3Dgo%26tag%3Dai",
 			mockSetup: func(m *mockEntryRepo) {
 				id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 				m.getByIDFn = func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) {
@@ -698,8 +714,12 @@ func TestEditPage(t *testing.T) {
 			}
 			if tt.expectedStatus == http.StatusOK {
 				body := rec.Body.String()
-				if tt.query == "?return_to=%2F%3Fpage%3D2" {
-					for _, want := range []string{`href="/?page=2"`, `data-return-to="/?page=2"`, `evt.detail.elt === editForm && evt.detail.successful`} {
+				if tt.query != "" {
+					for _, want := range []string{
+						`href="/?page=2&amp;q=go&amp;tag=ai" hx-boost="false"`,
+						`data-return-to="/?page=2&amp;q=go&amp;tag=ai"`,
+						`evt.detail.elt === editForm && evt.detail.successful`,
+					} {
 						if !strings.Contains(body, want) {
 							t.Errorf("EditPage() body = %q, want to contain %q", body, want)
 						}
@@ -707,6 +727,50 @@ func TestEditPage(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestStatusRemovesRowsThatLeaveTheDashboardFilter(t *testing.T) {
+	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440020")
+	mock := &mockEntryRepo{
+		getByIDFn: func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) {
+			return createTestEntry(id), nil // enriched as an article
+		},
+		countFilteredFn: func(_ context.Context, opts repository.ListOptions) (int, error) {
+			if opts.ID == nil || *opts.ID != id {
+				t.Fatalf("CountFiltered() id = %v, want %s", opts.ID, id)
+			}
+			if opts.Query != nil && *opts.Query == "broken" {
+				return 0, errors.New("database error")
+			}
+			if opts.SourceType != nil && *opts.SourceType != model.SourceTypeArticle {
+				return 0, nil
+			}
+			return 1, nil
+		},
+	}
+	router := setupTestHandler(mock)
+
+	for currentURL, wantRow := range map[string]bool{
+		"https://learnd.test/?type=other":           false,
+		"https://learnd.test/?type=article":         true,
+		"https://learnd.test/?q=test":               true,
+		"https://learnd.test/?q=broken":             true, // a failed check keeps the row
+		"https://learnd.test/":                      true,
+		"https://learnd.test/entries/x/edit?type=x": true,
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/entries/"+id.String()+"/status", nil)
+		req.Header.Set("HX-Request", "true")
+		req.Header.Set("HX-Current-URL", currentURL)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Status(%s) status = %d, want 200", currentURL, rec.Code)
+		}
+		if gotRow := strings.Contains(rec.Body.String(), `id="entry-`+id.String()+`"`); gotRow != wantRow {
+			t.Fatalf("Status(%s) rendered row = %v, want %v", currentURL, gotRow, wantRow)
+		}
 	}
 }
 

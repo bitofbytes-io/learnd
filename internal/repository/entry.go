@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/drywaters/learnd/internal/model"
@@ -59,27 +60,88 @@ func (r *EntryRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Ent
 	return entry, nil
 }
 
-// ListOptions contains options for listing entries
+// ListOptions contains options for listing entries. Nil filters match every
+// entry.
 type ListOptions struct {
 	Limit  int
 	Offset int
+	// Query is a websearch-style full-text query over title, notes,
+	// description, and summary.
+	Query      *string
+	Tag        *string
+	SourceType *model.SourceType
+	// ID narrows the filters to one entry, to check whether it still matches.
+	ID *uuid.UUID
 }
 
-// List retrieves entries with pagination
+// filter returns the WHERE clause for the options' filters and its arguments,
+// numbered from $1.
+func (opts ListOptions) filter() (string, []any) {
+	var conditions []string
+	var args []any
+	add := func(condition string, arg any) {
+		args = append(args, arg)
+		conditions = append(conditions, fmt.Sprintf(condition, len(args)))
+	}
+	if opts.Query != nil {
+		add(`search @@ websearch_to_tsquery('english', $%d)`, *opts.Query)
+	}
+	if opts.Tag != nil {
+		add(`tag = $%d`, *opts.Tag)
+	}
+	if opts.SourceType != nil {
+		add(`source_type = $%d`, string(*opts.SourceType))
+	}
+	if opts.ID != nil {
+		add(`id = $%d`, *opts.ID)
+	}
+	if len(conditions) == 0 {
+		return "", nil
+	}
+	return ` WHERE ` + strings.Join(conditions, ` AND `), args
+}
+
+// List retrieves entries matching the options' filters with pagination
 func (r *EntryRepository) List(ctx context.Context, opts ListOptions) ([]model.Entry, error) {
 	if opts.Limit <= 0 {
 		opts.Limit = 50
 	}
 
-	query := `SELECT ` + entryColumns + ` FROM entries ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+	where, args := opts.filter()
+	query := fmt.Sprintf(`SELECT %s FROM entries%s ORDER BY created_at DESC LIMIT $%d OFFSET $%d`,
+		entryColumns, where, len(args)+1, len(args)+2)
 
-	rows, err := r.pool.Query(ctx, query, opts.Limit, opts.Offset)
+	rows, err := r.pool.Query(ctx, query, append(args, opts.Limit, opts.Offset)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list entries: %w", err)
 	}
 	defer rows.Close()
 
 	return scanEntries(rows)
+}
+
+// CountFiltered returns the number of entries matching the options' filters;
+// Limit and Offset are ignored.
+func (r *EntryRepository) CountFiltered(ctx context.Context, opts ListOptions) (int, error) {
+	where, args := opts.filter()
+	var count int
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM entries`+where, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count entries: %w", err)
+	}
+	return count, nil
+}
+
+// ListTags returns every tag in use, alphabetically.
+func (r *EntryRepository) ListTags(ctx context.Context) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `SELECT DISTINCT tag FROM entries WHERE tag IS NOT NULL AND tag != '' ORDER BY tag`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tags: %w", err)
+	}
+	tags, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tags: %w", err)
+	}
+	return tags, nil
 }
 
 // ListCreatedBetween returns up to limit entries created in [start, end),

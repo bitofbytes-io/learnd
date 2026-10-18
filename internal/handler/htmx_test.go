@@ -32,6 +32,7 @@ func TestSanitizeReturnTo(t *testing.T) {
 	}{
 		{name: "empty defaults home", raw: "", want: "/"},
 		{name: "local dashboard page", raw: "/?page=2", want: "/?page=2"},
+		{name: "dashboard filters kept", raw: "/?page=2&q=go+%26+rust&tag=ai&type=doc", want: "/?page=2&q=go+%26+rust&tag=ai&type=doc"},
 		{name: "relative path rejected", raw: "dashboard", want: "/"},
 		{name: "absolute url rejected", raw: "https://evil.test/phish", want: "/"},
 		{name: "triple slash rejected", raw: "///evil.example", want: "/"},

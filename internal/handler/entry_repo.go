@@ -17,6 +17,8 @@ type EntryRepo interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, opts repository.ListOptions) ([]model.Entry, error)
 	Count(ctx context.Context) (int, error)
+	CountFiltered(ctx context.Context, opts repository.ListOptions) (int, error)
+	ListTags(ctx context.Context) ([]string, error)
 	GetLatestByNormalizedURL(ctx context.Context, normalizedURL string) (*repository.DuplicateEntry, error)
 	CountByNormalizedURL(ctx context.Context, normalizedURL string) (int, error)
 	GetDuplicateCountsByNormalizedURL(ctx context.Context, normalizedURLs []string) (map[string]int, error)

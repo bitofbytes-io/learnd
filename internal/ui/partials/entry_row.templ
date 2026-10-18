@@ -2,6 +2,7 @@ package partials
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/ui"
@@ -30,6 +31,11 @@ func editURL(entry ui.EntryView) string {
 		return entry.EditURL
 	}
 	return fmt.Sprintf("/entries/%s/edit", entry.ID)
+}
+
+// tagFilterURL links to the dashboard filtered to tag.
+func tagFilterURL(tag string) string {
+	return "/?tag=" + url.QueryEscape(tag)
 }
 
 templ entryStatusIcons(entry ui.EntryView) {
@@ -125,7 +131,7 @@ templ EntryRow(entry ui.EntryView) {
 				</span>
 
 				if entry.Tag != nil && *entry.Tag != "" {
-					<span class="tag">{ *entry.Tag }</span>
+					<a href={ templ.SafeURL(tagFilterURL(*entry.Tag)) } class="tag hover:underline" title="Show entries with this tag">{ *entry.Tag }</a>
 				}
 
 				if entry.Domain != nil {
