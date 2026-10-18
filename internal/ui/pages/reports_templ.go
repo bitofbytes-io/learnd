@@ -13,7 +13,7 @@ import (
 	"github.com/drywaters/learnd/internal/ui/layout"
 )
 
-func ReportsPage(startDate, endDate string) templ.Component {
+func ReportsPage(startDate, endDate, bookmarklet string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -109,7 +109,30 @@ func ReportsPage(startDate, endDate string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<p class=\"text-sm\">Select a date range to generate a report.</p></div></div></main></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<p class=\"text-sm\">Select a date range to generate a report.</p></div></div><!-- Bookmarklet: a desktop drag target, so it stays hidden on phones -->")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if bookmarklet != "" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<p class=\"hidden sm:flex items-center justify-center gap-2 mt-12 text-sm\" style=\"color: var(--color-ink-lighter);\">Capture from any tab: drag <a id=\"bookmarklet\" href=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var6 templ.SafeURL
+				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(bookmarklet))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages/reports.templ`, Line: 87, Col: 40}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"btn-secondary px-2.5 py-1 text-xs cursor-grab\" title=\"Drag to your bookmarks bar\" hx-boost=\"false\">Save to learnd</a> to your bookmarks bar.</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</main></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -143,12 +166,12 @@ func reportScript() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var6 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var6 == nil {
-			templ_7745c5c3_Var6 = templ.NopComponent
+		templ_7745c5c3_Var7 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var7 == nil {
+			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<script>\n\t\tconst reportForm = document.getElementById('report-form');\n\t\tif (reportForm) {\n\t\t\treportForm.addEventListener('change', function(event) {\n\t\t\t\tconst formData = new FormData(this);\n\t\t\t\tconst params = new URLSearchParams(formData);\n\t\t\t\tdocument.getElementById('export-link').href = '/api/reports/export?' + params.toString();\n\n\t\t\t\tif (event.target instanceof HTMLInputElement && event.target.type === 'date') {\n\t\t\t\t\twindow.requestAnimationFrame(() => event.target.blur());\n\t\t\t\t}\n\t\t\t});\n\t\t}\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<script>\n\t\tconst reportForm = document.getElementById('report-form');\n\t\tif (reportForm) {\n\t\t\treportForm.addEventListener('change', function(event) {\n\t\t\t\tconst formData = new FormData(this);\n\t\t\t\tconst params = new URLSearchParams(formData);\n\t\t\t\tdocument.getElementById('export-link').href = '/api/reports/export?' + params.toString();\n\n\t\t\t\tif (event.target instanceof HTMLInputElement && event.target.type === 'date') {\n\t\t\t\t\twindow.requestAnimationFrame(() => event.target.blur());\n\t\t\t\t}\n\t\t\t});\n\t\t}\n\n\t\tconst bookmarklet = document.getElementById('bookmarklet');\n\t\tif (bookmarklet) {\n\t\t\t// Clicking it here would only capture this page; it is meant to be dragged.\n\t\t\tbookmarklet.addEventListener('click', (event) => event.preventDefault());\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

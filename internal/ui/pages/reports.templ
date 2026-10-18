@@ -5,7 +5,7 @@ import (
 	"github.com/drywaters/learnd/internal/ui/layout"
 )
 
-templ ReportsPage(startDate, endDate string) {
+templ ReportsPage(startDate, endDate, bookmarklet string) {
 	@layout.Base("Reports - learnd") {
 		<div class="min-h-screen">
 			@components.ReportsHeader()
@@ -77,6 +77,21 @@ templ ReportsPage(startDate, endDate string) {
 						<p class="text-sm">Select a date range to generate a report.</p>
 					</div>
 				</div>
+
+				<!-- Bookmarklet: a desktop drag target, so it stays hidden on phones -->
+				if bookmarklet != "" {
+					<p class="hidden sm:flex items-center justify-center gap-2 mt-12 text-sm" style="color: var(--color-ink-lighter);">
+						Capture from any tab: drag
+						<a
+							id="bookmarklet"
+							href={ templ.SafeURL(bookmarklet) }
+							class="btn-secondary px-2.5 py-1 text-xs cursor-grab"
+							title="Drag to your bookmarks bar"
+							hx-boost="false"
+						>Save to learnd</a>
+						to your bookmarks bar.
+					</p>
+				}
 			</main>
 		</div>
 
@@ -97,6 +112,12 @@ templ reportScript() {
 					window.requestAnimationFrame(() => event.target.blur());
 				}
 			});
+		}
+
+		const bookmarklet = document.getElementById('bookmarklet');
+		if (bookmarklet) {
+			// Clicking it here would only capture this page; it is meant to be dragged.
+			bookmarklet.addEventListener('click', (event) => event.preventDefault());
 		}
 	</script>
 }
