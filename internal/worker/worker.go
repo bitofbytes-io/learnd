@@ -229,14 +229,16 @@ func (w *Worker) finishError(parent context.Context, kind repository.JobKind, cl
 	if err != nil && !errors.Is(err, repository.ErrClaimLost) {
 		slog.Error("finish job", "kind", kind, "id", claim.Entry.ID, "error", err)
 	}
-	if status == model.StatusFailed && !errors.Is(err, repository.ErrClaimLost) {
+	// Count a failure only once it is recorded; an unsaved one is retried later.
+	if err == nil && status == model.StatusFailed {
 		metrics.Job(string(kind), metrics.ResultFailure)
 	}
 }
 
 // saved records the outcome of a job's final write. result is the
-// learnd_jobs_total result for a successful write; a discarded result (lost
-// claim) or a shutdown is not counted.
+// learnd_jobs_total result for a successful write. A failed write is not
+// counted: the claim stays leased and the job runs again after the lease
+// expires.
 func (w *Worker) saved(parent context.Context, kind repository.JobKind, claim *repository.JobClaim, result string, err error) {
 	if err == nil {
 		slog.Info("completed job", "kind", kind, "id", claim.Entry.ID)
@@ -251,9 +253,7 @@ func (w *Worker) saved(parent context.Context, kind repository.JobKind, claim *r
 	// best-effort immediate release, avoiding waits during a normal shutdown.
 	if parent.Err() != nil {
 		w.finishError(parent, kind, claim, err)
-		return
 	}
-	metrics.Job(string(kind), metrics.ResultFailure)
 }
 
 // jobErrorMessage returns error text that is safe to persist and display.

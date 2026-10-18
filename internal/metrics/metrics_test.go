@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 )
 
 func scrape(t *testing.T, reg *prometheus.Registry) string {
@@ -96,6 +98,43 @@ func TestMiddlewareLabelsByRoutePattern(t *testing.T) {
 			t.Errorf("metrics output contains %q; routes must be labelled by pattern", leaked)
 		}
 	}
+}
+
+// Middleware runs before Recoverer on the app router, so a recovered panic
+// must be counted as a 500 on its route, not as a 200.
+func TestMiddlewareCountsRecoveredPanicAs500(t *testing.T) {
+	r := chi.NewRouter()
+	r.Use(Middleware)
+	r.Use(chimw.Recoverer)
+	r.Get("/panic-test/{id}", func(w http.ResponseWriter, r *http.Request) {
+		panic("boom")
+	})
+
+	series := []string{"GET", "/panic-test/{id}", "500"}
+	requestsBefore := testutil.ToFloat64(httpRequests.WithLabelValues(series...))
+	durationsBefore := histogramCount(t, series)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/panic-test/7", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+
+	if got := testutil.ToFloat64(httpRequests.WithLabelValues(series...)) - requestsBefore; got != 1 {
+		t.Errorf("http_requests_total%v rose by %v, want 1", series, got)
+	}
+	if got := histogramCount(t, series) - durationsBefore; got != 1 {
+		t.Errorf("http_request_duration_seconds_count%v rose by %v, want 1", series, got)
+	}
+}
+
+func histogramCount(t *testing.T, labels []string) uint64 {
+	t.Helper()
+	var m dto.Metric
+	if err := httpDuration.WithLabelValues(labels...).(prometheus.Metric).Write(&m); err != nil {
+		t.Fatal(err)
+	}
+	return m.GetHistogram().GetSampleCount()
 }
 
 func TestRegistryExportsDomainAndRuntimeSeries(t *testing.T) {
