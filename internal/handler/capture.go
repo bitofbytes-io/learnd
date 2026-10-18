@@ -82,14 +82,30 @@ func sharedPrefillURL(q url.Values) string {
 		return valid
 	}
 	for _, token := range strings.Fields(q.Get("text")) {
-		if !strings.HasPrefix(strings.ToLower(token), "http") {
+		start := strings.Index(strings.ToLower(token), "http")
+		if start < 0 {
 			continue
 		}
-		if valid, err := urlutil.ValidateSourceURL(strings.TrimRight(token, ".,;:!?")); err == nil {
+		if valid, err := urlutil.ValidateSourceURL(trimSharedLinkSuffix(token[start:])); err == nil {
 			return valid
 		}
 	}
 	return ""
+}
+
+// trimSharedLinkSuffix strips sentence punctuation and closing wrappers from a
+// link found in shared text, keeping a ")" that balances one inside the URL.
+func trimSharedLinkSuffix(link string) string {
+	for {
+		trimmed := strings.TrimRight(link, ".,;:!?\"'>]”’")
+		if strings.HasSuffix(trimmed, ")") && strings.Count(trimmed, ")") > strings.Count(trimmed, "(") {
+			trimmed = trimmed[:len(trimmed)-1]
+		}
+		if trimmed == link {
+			return link
+		}
+		link = trimmed
+	}
 }
 
 func parseDashboardPage(r *http.Request) int {
