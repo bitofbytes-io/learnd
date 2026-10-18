@@ -421,12 +421,15 @@ func TestCapturePageEntriesRequestSkipsTagList(t *testing.T) {
 	}
 
 	handler := NewCaptureHandler(mock, false)
-	req := httptest.NewRequest(http.MethodGet, "/?q=go", nil)
+	req := httptest.NewRequest(http.MethodGet, "/?q=go&tag=&type=", nil)
 	req.Header.Set("HX-Request", "true")
 	req.Header.Set("HX-Target", "dashboard-entries-region")
 	rec := httptest.NewRecorder()
 	handler.CapturePage(rec, req)
 
+	if got := rec.Header().Get("HX-Push-Url"); got != "/?q=go" {
+		t.Fatalf("CapturePage() HX-Push-Url = %q, want %q", got, "/?q=go")
+	}
 	body := rec.Body.String()
 	if strings.Contains(body, `id="dashboard-filters"`) {
 		t.Fatalf("CapturePage() entries region should not re-render the filters: %q", body)

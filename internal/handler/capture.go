@@ -64,6 +64,8 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 	pagination := buildDashboardPagination(page, totalPages, filter)
 
 	if isDashboardEntriesRequest(r) {
+		// The filter form sends empty fields too; push the canonical URL instead.
+		w.Header().Set("HX-Push-Url", dashboardPagePath(page, filter))
 		if err := pages.CaptureEntriesSection(entryViews, pagination, filter, totalEntries).Render(ctx, w); err != nil {
 			slog.Error("failed to render dashboard entries section", "handler", "CapturePage", "error", err)
 		}

@@ -79,6 +79,13 @@
 		color: var(--color-ink-lighter);
 	}
 
+	/* Mute the browser's blue search clear button to match the palette */
+	.input-field[type="search"]::-webkit-search-cancel-button {
+		cursor: pointer;
+		filter: grayscale(1);
+		opacity: 0.5;
+	}
+
 	.input-url {
 		font-family: var(--font-mono);
 		font-size: 1.125rem;
