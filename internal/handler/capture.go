@@ -72,17 +72,21 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The tag select is a convenience; without it the dashboard still works.
-	if filter.Tags, err = h.entryRepo.ListTags(ctx); err != nil {
+	// The tag select and tag suggestions are conveniences; without them the
+	// dashboard still works. Only tags in use are suggested, so a stale
+	// ?tag= joins the select but not the suggestions.
+	tags, err := h.entryRepo.ListTags(ctx)
+	if err != nil {
 		slog.Warn("failed to list tags", "handler", "CapturePage", "error", err)
 	}
-	if filter.Tag != "" && !slices.Contains(filter.Tags, filter.Tag) {
-		filter.Tags = append(filter.Tags, filter.Tag)
+	filter.Tags = tags
+	if filter.Tag != "" && !slices.Contains(tags, filter.Tag) {
+		filter.Tags = append(slices.Clip(tags), filter.Tag)
 	}
 
 	prefillURL := sharedPrefillURL(r.URL.Query())
 
-	if err := pages.CapturePage(entryViews, pagination, filter, totalEntries, prefillURL).Render(ctx, w); err != nil {
+	if err := pages.CapturePage(entryViews, pagination, filter, tags, totalEntries, prefillURL).Render(ctx, w); err != nil {
 		// Log only - response may already be partially written, can't send clean http.Error
 		slog.Error("failed to render page", "handler", "CapturePage", "error", err)
 	}

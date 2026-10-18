@@ -28,7 +28,7 @@ func matchingEntriesHeading(total int) string {
 	return fmt.Sprintf("%d matching entries", total)
 }
 
-templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter ui.DashboardFilter, totalEntries int, prefillURL string) {
+templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter ui.DashboardFilter, tags []string, totalEntries int, prefillURL string) {
 	@layout.Base("Capture - learnd") {
 		<div class="min-h-screen">
 			@components.CaptureHeader()
@@ -74,7 +74,9 @@ templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter u
 									pattern="[a-z0-9\-]*"
 									title="Lowercase letters, numbers, and hyphens only"
 									autocomplete="off"
+									list={ tagSuggestionsID }
 								/>
+								@tagSuggestions(tags)
 							</div>
 						</div>
 

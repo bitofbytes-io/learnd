@@ -148,7 +148,12 @@ func (h *EntryHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 	entryView := buildEntryView(entry, getDuplicateCount(ctx, h.entryRepo, entry), h.summaryEnabled)
 	returnTo := sanitizeReturnTo(r.URL.Query().Get("return_to"))
 	entryView.EditURL = entryEditURL(entry.ID.String(), returnTo)
-	pages.EditPage(entryView, returnTo).Render(ctx, w)
+	// Tag suggestions are a convenience; the form still works without them.
+	tags, err := h.entryRepo.ListTags(ctx)
+	if err != nil {
+		slog.Warn("failed to list tags", "handler", "EditPage", "id", id, "error", err)
+	}
+	pages.EditPage(entryView, returnTo, tags).Render(ctx, w)
 }
 
 // Update updates an entry. Form fields the request omits keep their stored

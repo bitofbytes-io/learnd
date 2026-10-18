@@ -730,6 +730,51 @@ func TestEditPage(t *testing.T) {
 	}
 }
 
+func TestEditPageSuggestsTagsInUse(t *testing.T) {
+	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440010")
+	tests := []struct {
+		name    string
+		tags    []string
+		tagsErr error
+		want    string
+	}{
+		{
+			name: "tags listed",
+			tags: []string{"ai", "test"},
+			want: `list="tag-suggestions"><datalist id="tag-suggestions"><option value="ai"></option><option value="test"></option></datalist>`,
+		},
+		{
+			name:    "tag list failure still renders the form",
+			tagsErr: errors.New("database error"),
+			want:    `list="tag-suggestions"><datalist id="tag-suggestions"></datalist>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockEntryRepo{
+				getByIDFn: func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) {
+					return createTestEntry(reqID), nil
+				},
+				listTagsFn: func(ctx context.Context) ([]string, error) {
+					return tt.tags, tt.tagsErr
+				},
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/entries/"+id.String()+"/edit", nil)
+			rec := httptest.NewRecorder()
+			setupTestHandler(mock).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("EditPage() status = %d, want %d", rec.Code, http.StatusOK)
+			}
+			if body := rec.Body.String(); !strings.Contains(body, tt.want) {
+				t.Fatalf("EditPage() body missing %q: %q", tt.want, body)
+			}
+		})
+	}
+}
+
 func TestStatusRemovesRowsThatLeaveTheDashboardFilter(t *testing.T) {
 	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440020")
 	mock := &mockEntryRepo{
