@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -55,6 +57,78 @@ func TestReady(t *testing.T) {
 				t.Fatalf("Cache-Control = %q, want no-store", got)
 			}
 		})
+	}
+}
+
+// A burst of probes must not take one pool connection each: only one ping
+// runs at a time, and requests within readyCacheTTL reuse its result.
+func TestReadySharesOnePingAcrossConcurrentRequests(t *testing.T) {
+	var calls, inFlight, maxInFlight atomic.Int32
+	started, release := make(chan struct{}, 1), make(chan struct{})
+	h := NewReadyHandler(pingerFunc(func(context.Context) error {
+		calls.Add(1)
+		n := inFlight.Add(1)
+		defer inFlight.Add(-1)
+		if n > maxInFlight.Load() {
+			maxInFlight.Store(n)
+		}
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+		<-release
+		return nil
+	}))
+	now := time.Unix(1_700_000_000, 0)
+	h.now = func() time.Time { return now }
+
+	const requests = 20
+	codes := make(chan int, requests)
+	var wg sync.WaitGroup
+	for range requests {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := httptest.NewRecorder()
+			h.Ready(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
+			codes <- rec.Code
+		}()
+	}
+	<-started
+	close(release)
+	wg.Wait()
+	close(codes)
+
+	for code := range codes {
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", code, http.StatusOK)
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("pings = %d, want 1 for a burst within the cache TTL", got)
+	}
+	if got := maxInFlight.Load(); got != 1 {
+		t.Fatalf("concurrent pings = %d, want 1", got)
+	}
+
+	now = now.Add(readyCacheTTL)
+	h.Ready(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/ready", nil))
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("pings after TTL = %d, want 2", got)
+	}
+}
+
+// One client hanging up must not cancel the shared ping and cache a failure.
+func TestReadyIgnoresClientCancellation(t *testing.T) {
+	h := NewReadyHandler(pingerFunc(func(ctx context.Context) error { return ctx.Err() }))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	rec := httptest.NewRecorder()
+	h.Ready(rec, httptest.NewRequest(http.MethodGet, "/ready", nil).WithContext(ctx))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
 }
 
