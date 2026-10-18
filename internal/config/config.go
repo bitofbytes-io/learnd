@@ -18,6 +18,7 @@ type Config struct {
 	GeminiModel   string
 	YouTubeAPIKey string
 	LogLevel      string
+	MetricsAddr   string
 	SecureCookies bool
 	// Location decides which calendar day an entry falls on in reports.
 	Location *time.Location
@@ -49,6 +50,10 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.LogLevel, err = getEnv("LOG_LEVEL", "info"); err != nil {
+		return nil, err
+	}
+	// METRICS_ADDR=off disables the internal Prometheus listener.
+	if cfg.MetricsAddr, err = getEnv("METRICS_ADDR", ":9464"); err != nil {
 		return nil, err
 	}
 

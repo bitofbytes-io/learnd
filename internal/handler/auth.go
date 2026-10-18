@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/drywaters/learnd/internal/metrics"
 	"github.com/drywaters/learnd/internal/ui/pages"
 )
 
@@ -46,6 +47,7 @@ func (h *AuthHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		slog.Info("login failed", "reason", "invalid_request")
+		metrics.LoginFailure(metrics.ReasonInvalidRequest)
 		http.Redirect(w, r, "/login?error=invalid_request", http.StatusSeeOther)
 		return
 	}
@@ -53,6 +55,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	apiKey := r.FormValue("api_key")
 	if apiKey == "" {
 		slog.Info("login failed", "reason", "missing_key")
+		metrics.LoginFailure(metrics.ReasonMissingKey)
 		http.Redirect(w, r, "/login?error=missing_key", http.StatusSeeOther)
 		return
 	}
@@ -60,6 +63,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// Validate the API token with constant-time comparison
 	if !constantTimeEqual(apiKey, h.apiToken) {
 		slog.Info("login failed", "reason", "invalid_key")
+		metrics.LoginFailure(metrics.ReasonInvalidKey)
 		http.Redirect(w, r, "/login?error=invalid_key", http.StatusSeeOther)
 		return
 	}
