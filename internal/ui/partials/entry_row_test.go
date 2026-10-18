@@ -34,6 +34,18 @@ func TestEntryRowPollsStatusOnlyWhileWorkIsPending(t *testing.T) {
 	}
 }
 
+func TestEntryRowTagLinksToTagFilter(t *testing.T) {
+	tag := "go-lang"
+	view := ui.EntryView{Entry: model.Entry{ID: uuid.New(), SourceURL: "https://example.test", Tag: &tag, EnrichmentStatus: model.StatusOK}}
+	var b strings.Builder
+	if err := EntryRow(view).Render(context.Background(), &b); err != nil {
+		t.Fatal(err)
+	}
+	if want := `<a href="/?tag=go-lang" class="tag hover:underline"`; !strings.Contains(b.String(), want) {
+		t.Fatalf("row missing tag filter link %s: %s", want, b.String())
+	}
+}
+
 func TestNeedsPolling(t *testing.T) {
 	tests := []struct {
 		name           string

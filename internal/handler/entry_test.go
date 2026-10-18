@@ -484,6 +484,8 @@ type mockEntryRepo struct {
 	deleteFn                          func(ctx context.Context, id uuid.UUID) error
 	listFn                            func(ctx context.Context, opts repository.ListOptions) ([]model.Entry, error)
 	countFn                           func(ctx context.Context) (int, error)
+	countFilteredFn                   func(ctx context.Context, opts repository.ListOptions) (int, error)
+	listTagsFn                        func(ctx context.Context) ([]string, error)
 	getLatestByNormalizedURLFn        func(ctx context.Context, normalizedURL string) (*repository.DuplicateEntry, error)
 	countByNormalizedURLFn            func(ctx context.Context, normalizedURL string) (int, error)
 	getDuplicateCountsByNormalizedURL func(ctx context.Context, normalizedURLs []string) (map[string]int, error)
@@ -536,6 +538,20 @@ func (m *mockEntryRepo) Count(ctx context.Context) (int, error) {
 		return m.countFn(ctx)
 	}
 	return 0, nil
+}
+
+func (m *mockEntryRepo) CountFiltered(ctx context.Context, opts repository.ListOptions) (int, error) {
+	if m.countFilteredFn != nil {
+		return m.countFilteredFn(ctx, opts)
+	}
+	return 0, nil
+}
+
+func (m *mockEntryRepo) ListTags(ctx context.Context) ([]string, error) {
+	if m.listTagsFn != nil {
+		return m.listTagsFn(ctx)
+	}
+	return nil, nil
 }
 
 func (m *mockEntryRepo) GetLatestByNormalizedURL(ctx context.Context, normalizedURL string) (*repository.DuplicateEntry, error) {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
+	"github.com/drywaters/learnd/internal/ui"
 	"github.com/google/uuid"
 )
 
@@ -24,7 +25,7 @@ func TestCapturePageUsesPageOffsetAndRendersPagination(t *testing.T) {
 			gotOpts = opts
 			return []model.Entry{*createDashboardEntry("Page 2 Entry")}, nil
 		},
-		countFn: func(_ context.Context) (int, error) {
+		countFilteredFn: func(_ context.Context, _ repository.ListOptions) (int, error) {
 			return 45, nil
 		},
 		getDuplicateCountsByNormalizedURL: func(_ context.Context, normalizedURLs []string) (map[string]int, error) {
@@ -68,7 +69,7 @@ func TestCapturePagePrefillsURLFromSharedText(t *testing.T) {
 		listFn: func(_ context.Context, opts repository.ListOptions) ([]model.Entry, error) {
 			return nil, nil
 		},
-		countFn: func(_ context.Context) (int, error) {
+		countFilteredFn: func(_ context.Context, _ repository.ListOptions) (int, error) {
 			return 0, nil
 		},
 	}
@@ -125,7 +126,7 @@ func TestCapturePagePaginationRequestRendersEntriesRegionOnly(t *testing.T) {
 		listFn: func(_ context.Context, opts repository.ListOptions) ([]model.Entry, error) {
 			return []model.Entry{*createDashboardEntry("HTMX Entry")}, nil
 		},
-		countFn: func(_ context.Context) (int, error) {
+		countFilteredFn: func(_ context.Context, _ repository.ListOptions) (int, error) {
 			return 25, nil
 		},
 		getDuplicateCountsByNormalizedURL: func(_ context.Context, normalizedURLs []string) (map[string]int, error) {
@@ -158,7 +159,7 @@ func TestCapturePageBoostedNavigationStillRendersFullPage(t *testing.T) {
 		listFn: func(_ context.Context, opts repository.ListOptions) ([]model.Entry, error) {
 			return []model.Entry{*createDashboardEntry("Boosted Entry")}, nil
 		},
-		countFn: func(_ context.Context) (int, error) {
+		countFilteredFn: func(_ context.Context, _ repository.ListOptions) (int, error) {
 			return 25, nil
 		},
 		getDuplicateCountsByNormalizedURL: func(_ context.Context, normalizedURLs []string) (map[string]int, error) {
@@ -193,7 +194,7 @@ func TestCapturePageClampsInvalidAndOutOfRangePages(t *testing.T) {
 				calls = append(calls, opts)
 				return nil, nil
 			},
-			countFn: func(_ context.Context) (int, error) {
+			countFilteredFn: func(_ context.Context, _ repository.ListOptions) (int, error) {
 				return 0, nil
 			},
 		}
@@ -225,7 +226,7 @@ func TestCapturePageClampsInvalidAndOutOfRangePages(t *testing.T) {
 				}
 				return nil, nil
 			},
-			countFn: func(_ context.Context) (int, error) {
+			countFilteredFn: func(_ context.Context, _ repository.ListOptions) (int, error) {
 				return 21, nil
 			},
 			getDuplicateCountsByNormalizedURL: func(_ context.Context, normalizedURLs []string) (map[string]int, error) {
@@ -262,7 +263,7 @@ func TestCapturePageClampsInvalidAndOutOfRangePages(t *testing.T) {
 				}
 				return nil, nil
 			},
-			countFn: func(_ context.Context) (int, error) {
+			countFilteredFn: func(_ context.Context, _ repository.ListOptions) (int, error) {
 				return 21, nil
 			},
 			getDuplicateCountsByNormalizedURL: func(_ context.Context, normalizedURLs []string) (map[string]int, error) {
@@ -291,6 +292,169 @@ func TestCapturePageClampsInvalidAndOutOfRangePages(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestCapturePageAppliesSearchAndFilters(t *testing.T) {
+	var listOpts, countOpts repository.ListOptions
+	mock := &mockEntryRepo{
+		listFn: func(_ context.Context, opts repository.ListOptions) ([]model.Entry, error) {
+			listOpts = opts
+			return []model.Entry{*createDashboardEntry("Filtered Entry")}, nil
+		},
+		countFilteredFn: func(_ context.Context, opts repository.ListOptions) (int, error) {
+			countOpts = opts
+			return 45, nil
+		},
+		listTagsFn: func(_ context.Context) ([]string, error) {
+			return []string{"ai", "go"}, nil
+		},
+		getDuplicateCountsByNormalizedURL: func(_ context.Context, normalizedURLs []string) (map[string]int, error) {
+			return map[string]int{}, nil
+		},
+	}
+
+	handler := NewCaptureHandler(mock, false)
+	req := httptest.NewRequest(http.MethodGet, "/?q=+go+%26+rust+&tag=GO&type=youtube&page=2", nil)
+	rec := httptest.NewRecorder()
+	handler.CapturePage(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("CapturePage() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	for name, opts := range map[string]repository.ListOptions{"List": listOpts, "CountFiltered": countOpts} {
+		if opts.Query == nil || *opts.Query != "go & rust" {
+			t.Fatalf("%s() query = %v, want %q", name, opts.Query, "go & rust")
+		}
+		if opts.Tag == nil || *opts.Tag != "go" {
+			t.Fatalf("%s() tag = %v, want go", name, opts.Tag)
+		}
+		if opts.SourceType == nil || *opts.SourceType != model.SourceTypeYouTube {
+			t.Fatalf("%s() source type = %v, want youtube", name, opts.SourceType)
+		}
+	}
+	if listOpts.Offset != dashboardPageSize {
+		t.Fatalf("List() offset = %d, want %d", listOpts.Offset, dashboardPageSize)
+	}
+
+	body := rec.Body.String()
+	for _, want := range []string{
+		`href="/?q=go+%26+rust&amp;tag=go&amp;type=youtube"`,
+		`href="/?page=3&amp;q=go+%26+rust&amp;tag=go&amp;type=youtube"`,
+		`return_to=%2F%3Fpage%3D2%26q%3Dgo%2B%2526%2Brust%26tag%3Dgo%26type%3Dyoutube`,
+		`name="q" value="go &amp; rust"`,
+		`<option value="go" selected>go</option>`,
+		`<option value="ai">ai</option>`,
+		`<option value="youtube" selected>YouTube</option>`,
+		"45 matching entries",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("CapturePage() body missing %q", want)
+		}
+	}
+}
+
+func TestCapturePageIgnoresInvalidFilters(t *testing.T) {
+	var gotOpts repository.ListOptions
+	mock := &mockEntryRepo{
+		listFn: func(_ context.Context, opts repository.ListOptions) ([]model.Entry, error) {
+			gotOpts = opts
+			return nil, nil
+		},
+	}
+
+	handler := NewCaptureHandler(mock, false)
+	req := httptest.NewRequest(http.MethodGet, "/?q=++&tag=not+a+tag&type=movie", nil)
+	rec := httptest.NewRecorder()
+	handler.CapturePage(rec, req)
+
+	if gotOpts.Query != nil || gotOpts.Tag != nil || gotOpts.SourceType != nil {
+		t.Fatalf("CapturePage() list opts = %+v, want no filters", gotOpts)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Recent Entries") || !strings.Contains(body, "No entries yet") {
+		t.Fatalf("CapturePage() should render the unfiltered dashboard: %q", body)
+	}
+}
+
+func TestCapturePageFilteredEmptyStateOffersClear(t *testing.T) {
+	mock := &mockEntryRepo{}
+
+	handler := NewCaptureHandler(mock, false)
+	req := httptest.NewRequest(http.MethodGet, "/?q=nothing", nil)
+	rec := httptest.NewRecorder()
+	handler.CapturePage(rec, req)
+
+	body := rec.Body.String()
+	for _, want := range []string{"0 matching entries", "No entries match.", `href="/"`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("CapturePage() body missing %q", want)
+		}
+	}
+	if strings.Contains(body, "No entries yet") {
+		t.Fatal("CapturePage() filtered empty state should not invite capturing")
+	}
+}
+
+func TestCapturePageKeepsUnknownSelectedTag(t *testing.T) {
+	mock := &mockEntryRepo{
+		listTagsFn: func(_ context.Context) ([]string, error) {
+			return []string{"ai"}, nil
+		},
+	}
+
+	handler := NewCaptureHandler(mock, false)
+	req := httptest.NewRequest(http.MethodGet, "/?tag=gone", nil)
+	rec := httptest.NewRecorder()
+	handler.CapturePage(rec, req)
+
+	if body := rec.Body.String(); !strings.Contains(body, `<option value="gone" selected>gone</option>`) {
+		t.Fatalf("CapturePage() body missing the selected tag option: %q", body)
+	}
+}
+
+func TestCapturePageEntriesRequestSkipsTagList(t *testing.T) {
+	mock := &mockEntryRepo{
+		listTagsFn: func(_ context.Context) ([]string, error) {
+			t.Fatal("ListTags() called for an entries-region request")
+			return nil, nil
+		},
+	}
+
+	handler := NewCaptureHandler(mock, false)
+	req := httptest.NewRequest(http.MethodGet, "/?q=go", nil)
+	req.Header.Set("HX-Request", "true")
+	req.Header.Set("HX-Target", "dashboard-entries-region")
+	rec := httptest.NewRecorder()
+	handler.CapturePage(rec, req)
+
+	body := rec.Body.String()
+	if strings.Contains(body, `id="dashboard-filters"`) {
+		t.Fatalf("CapturePage() entries region should not re-render the filters: %q", body)
+	}
+	if !strings.Contains(body, "0 matching entries") {
+		t.Fatalf("CapturePage() entries region missing match count: %q", body)
+	}
+}
+
+func TestDashboardPagePath(t *testing.T) {
+	tests := []struct {
+		name   string
+		page   int
+		filter ui.DashboardFilter
+		want   string
+	}{
+		{name: "home", page: 1, want: "/"},
+		{name: "page only", page: 2, want: "/?page=2"},
+		{name: "filters on first page", page: 1, filter: ui.DashboardFilter{Query: "a b", Tag: "ai", SourceType: "doc"}, want: "/?q=a+b&tag=ai&type=doc"},
+		{name: "filters with page", page: 3, filter: ui.DashboardFilter{Tag: "ai"}, want: "/?page=3&tag=ai"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := dashboardPagePath(tt.page, tt.filter); got != tt.want {
+				t.Fatalf("dashboardPagePath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }
 
 func createDashboardEntry(title string) *model.Entry {

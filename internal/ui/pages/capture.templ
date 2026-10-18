@@ -3,13 +3,32 @@ package pages
 import (
 	"fmt"
 
+	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/ui"
 	"github.com/drywaters/learnd/internal/ui/components"
 	"github.com/drywaters/learnd/internal/ui/layout"
 	"github.com/drywaters/learnd/internal/ui/partials"
 )
 
-templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, prefillURL string) {
+var sourceTypeOptions = []struct {
+	value model.SourceType
+	label string
+}{
+	{model.SourceTypeYouTube, "YouTube"},
+	{model.SourceTypePodcast, "Podcast"},
+	{model.SourceTypeArticle, "Article"},
+	{model.SourceTypeDoc, "Documentation"},
+	{model.SourceTypeOther, "Other"},
+}
+
+func matchingEntriesHeading(total int) string {
+	if total == 1 {
+		return "1 matching entry"
+	}
+	return fmt.Sprintf("%d matching entries", total)
+}
+
+templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter ui.DashboardFilter, totalEntries int, prefillURL string) {
 	@layout.Base("Capture - learnd") {
 		<div class="min-h-screen">
 			@components.CaptureHeader()
@@ -118,18 +137,82 @@ templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, prefillU
 					</form>
 				</div>
 
-				@CaptureEntriesSection(entries, pagination)
+				@dashboardFilters(filter)
+				@CaptureEntriesSection(entries, pagination, filter, totalEntries)
 			</main>
 		</div>
 		@keyboardSubmitScript()
 	}
 }
 
-templ CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView) {
+// dashboardFilters sits outside the entries region so typing in the search
+// box keeps focus while the region below is swapped. Changing a filter
+// starts again from page 1.
+templ dashboardFilters(filter ui.DashboardFilter) {
+	<form
+		id="dashboard-filters"
+		action="/"
+		method="get"
+		role="search"
+		class="flex flex-col sm:flex-row gap-3 mb-6"
+		hx-get="/"
+		hx-target="#dashboard-entries-region"
+		hx-select="#dashboard-entries-region"
+		hx-swap="outerHTML show:none"
+		hx-push-url="true"
+		hx-include="#dashboard-filters"
+	>
+		<input
+			type="search"
+			id="dashboard-search"
+			name="q"
+			value={ filter.Query }
+			class="input-field w-full sm:flex-grow"
+			placeholder="Search entries..."
+			aria-label="Search entries"
+			autocomplete="off"
+			maxlength="200"
+			hx-get="/"
+			hx-trigger="input changed delay:300ms"
+		/>
+		<div class="grid grid-cols-2 gap-3 sm:flex sm:shrink-0">
+			<select
+				name="tag"
+				class="input-field input-select w-full pr-10 sm:w-40"
+				aria-label="Filter by tag"
+				hx-get="/"
+				hx-trigger="change"
+			>
+				<option value="">All tags</option>
+				for _, tag := range filter.Tags {
+					<option value={ tag } selected?={ tag == filter.Tag }>{ tag }</option>
+				}
+			</select>
+			<select
+				name="type"
+				class="input-field input-select w-full pr-10 sm:w-40"
+				aria-label="Filter by type"
+				hx-get="/"
+				hx-trigger="change"
+			>
+				<option value="">All types</option>
+				for _, option := range sourceTypeOptions {
+					<option value={ string(option.value) } selected?={ string(option.value) == filter.SourceType }>{ option.label }</option>
+				}
+			</select>
+		</div>
+	</form>
+}
+
+templ CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView, filter ui.DashboardFilter, totalEntries int) {
 	<div id="dashboard-entries-region">
 		<div class="flex items-center justify-between mb-4 gap-4">
 			<h2 class="font-display text-lg font-medium" style="color: var(--color-ink);">
-				Recent Entries
+				if filter.Active() {
+					{ matchingEntriesHeading(totalEntries) }
+				} else {
+					Recent Entries
+				}
 			</h2>
 			@paginationControls(pagination)
 		</div>
@@ -142,7 +225,14 @@ templ CaptureEntriesSection(entries []ui.EntryView, pagination ui.PaginationView
 					}
 				}
 			</div>
-			@partials.EmptyState(len(entries) == 0, false)
+			if filter.Active() && len(entries) == 0 {
+				<div id="empty-state" class="p-8 text-center text-sm" style="color: var(--color-ink-lighter);">
+					<p>No entries match.</p>
+					<a href="/" class="inline-block mt-2 text-xs hover:underline" style="color: var(--color-accent);">Clear filters</a>
+				</div>
+			} else {
+				@partials.EmptyState(len(entries) == 0, false)
+			}
 		</div>
 
 		<div class="mt-6 flex justify-end">

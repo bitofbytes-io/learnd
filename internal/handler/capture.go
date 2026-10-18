@@ -1,13 +1,14 @@
 package handler
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/ui"
 	"github.com/drywaters/learnd/internal/ui/pages"
@@ -34,8 +35,10 @@ func NewCaptureHandler(entryRepo EntryRepo, summaryEnabled bool) *CaptureHandler
 func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	page := parseDashboardPage(r)
+	filter := parseDashboardFilter(r.URL.Query())
+	opts := dashboardListOptions(filter)
 
-	totalEntries, err := h.entryRepo.Count(ctx)
+	totalEntries, err := h.entryRepo.CountFiltered(ctx, opts)
 	if err != nil {
 		slog.Error("failed to count entries", "handler", "CapturePage", "error", err)
 		http.Error(w, "Failed to load entries", http.StatusInternalServerError)
@@ -46,29 +49,38 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 	if page > totalPages {
 		page = totalPages
 	}
-	offset := dashboardOffset(page)
+	opts.Limit = dashboardPageSize
+	opts.Offset = dashboardOffset(page)
 
-	entries, err := h.entryRepo.List(ctx, repository.ListOptions{Limit: dashboardPageSize, Offset: offset})
+	entries, err := h.entryRepo.List(ctx, opts)
 	if err != nil {
-		slog.Error("failed to list entries", "handler", "CapturePage", "page", page, "offset", offset, "error", err)
+		slog.Error("failed to list entries", "handler", "CapturePage", "page", page, "offset", opts.Offset, "error", err)
 		http.Error(w, "Failed to load entries", http.StatusInternalServerError)
 		return
 	}
 
 	entryViews := buildEntryViews(ctx, h.entryRepo, entries, h.summaryEnabled)
-	stampDashboardEditURLs(entryViews, dashboardPagePath(page))
-	pagination := buildDashboardPagination(page, totalPages)
+	stampDashboardEditURLs(entryViews, dashboardPagePath(page, filter))
+	pagination := buildDashboardPagination(page, totalPages, filter)
 
 	if isDashboardEntriesRequest(r) {
-		if err := pages.CaptureEntriesSection(entryViews, pagination).Render(ctx, w); err != nil {
+		if err := pages.CaptureEntriesSection(entryViews, pagination, filter, totalEntries).Render(ctx, w); err != nil {
 			slog.Error("failed to render dashboard entries section", "handler", "CapturePage", "error", err)
 		}
 		return
 	}
 
+	// The tag select is a convenience; without it the dashboard still works.
+	if filter.Tags, err = h.entryRepo.ListTags(ctx); err != nil {
+		slog.Warn("failed to list tags", "handler", "CapturePage", "error", err)
+	}
+	if filter.Tag != "" && !slices.Contains(filter.Tags, filter.Tag) {
+		filter.Tags = append(filter.Tags, filter.Tag)
+	}
+
 	prefillURL := sharedPrefillURL(r.URL.Query())
 
-	if err := pages.CapturePage(entryViews, pagination, prefillURL).Render(ctx, w); err != nil {
+	if err := pages.CapturePage(entryViews, pagination, filter, totalEntries, prefillURL).Render(ctx, w); err != nil {
 		// Log only - response may already be partially written, can't send clean http.Error
 		slog.Error("failed to render page", "handler", "CapturePage", "error", err)
 	}
@@ -118,6 +130,41 @@ func parseDashboardPage(r *http.Request) int {
 	return page
 }
 
+// maxDashboardQueryLength caps the search text, in runes, sent to Postgres.
+const maxDashboardQueryLength = 200
+
+// parseDashboardFilter reads ?q=, ?tag=, and ?type=. An invalid tag or type is
+// ignored rather than rejected, so a stale link still shows the dashboard.
+func parseDashboardFilter(q url.Values) ui.DashboardFilter {
+	query := []rune(strings.TrimSpace(q.Get("q")))
+	if len(query) > maxDashboardQueryLength {
+		query = query[:maxDashboardQueryLength]
+	}
+	filter := ui.DashboardFilter{Query: strings.TrimSpace(string(query))}
+	if tag, err := parseTag(q.Get("tag")); err == nil && tag != nil {
+		filter.Tag = *tag
+	}
+	if sourceType := parseSourceType(q.Get("type")); sourceType != nil {
+		filter.SourceType = string(*sourceType)
+	}
+	return filter
+}
+
+func dashboardListOptions(filter ui.DashboardFilter) repository.ListOptions {
+	var opts repository.ListOptions
+	if filter.Query != "" {
+		opts.Query = &filter.Query
+	}
+	if filter.Tag != "" {
+		opts.Tag = &filter.Tag
+	}
+	if filter.SourceType != "" {
+		sourceType := model.SourceType(filter.SourceType)
+		opts.SourceType = &sourceType
+	}
+	return opts
+}
+
 func totalDashboardPages(totalEntries int) int {
 	if totalEntries <= 0 {
 		return 1
@@ -137,7 +184,7 @@ func dashboardOffset(page int) int {
 	return (page - 1) * dashboardPageSize
 }
 
-func buildDashboardPagination(page, totalPages int) ui.PaginationView {
+func buildDashboardPagination(page, totalPages int, filter ui.DashboardFilter) ui.PaginationView {
 	pagination := ui.PaginationView{
 		CurrentPage: page,
 		TotalPages:  totalPages,
@@ -145,19 +192,33 @@ func buildDashboardPagination(page, totalPages int) ui.PaginationView {
 		HasNext:     page < totalPages,
 	}
 	if pagination.HasPrevious {
-		pagination.PreviousURL = dashboardPagePath(page - 1)
+		pagination.PreviousURL = dashboardPagePath(page-1, filter)
 	}
 	if pagination.HasNext {
-		pagination.NextURL = dashboardPagePath(page + 1)
+		pagination.NextURL = dashboardPagePath(page+1, filter)
 	}
 	return pagination
 }
 
-func dashboardPagePath(page int) string {
-	if page <= 1 {
+// dashboardPagePath returns the dashboard URL for page with filter applied.
+func dashboardPagePath(page int, filter ui.DashboardFilter) string {
+	values := url.Values{}
+	if page > 1 {
+		values.Set("page", strconv.Itoa(page))
+	}
+	if filter.Query != "" {
+		values.Set("q", filter.Query)
+	}
+	if filter.Tag != "" {
+		values.Set("tag", filter.Tag)
+	}
+	if filter.SourceType != "" {
+		values.Set("type", filter.SourceType)
+	}
+	if len(values) == 0 {
 		return "/"
 	}
-	return fmt.Sprintf("/?page=%d", page)
+	return "/?" + values.Encode()
 }
 
 func stampDashboardEditURL(entry *ui.EntryView, returnTo string) {
