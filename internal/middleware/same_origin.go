@@ -19,7 +19,7 @@ func SameOrigin(next http.Handler) http.Handler {
 }
 
 func sameOrigin(r *http.Request) bool {
-	requestOrigin := requestOrigin(r)
+	requestOrigin := RequestOrigin(r)
 	if requestOrigin == "" {
 		return false
 	}
@@ -35,7 +35,10 @@ func sameOrigin(r *http.Request) bool {
 	return false
 }
 
-func requestOrigin(r *http.Request) string {
+// RequestOrigin returns the lowercased scheme://host the browser used to reach
+// the app, honoring X-Forwarded-Proto from a TLS-terminating proxy. It is
+// empty when the request has no host.
+func RequestOrigin(r *http.Request) string {
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"

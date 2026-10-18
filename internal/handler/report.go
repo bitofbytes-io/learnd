@@ -3,6 +3,7 @@ package handler
 import (
 	"cmp"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/drywaters/learnd/internal/middleware"
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/ui/pages"
@@ -35,7 +37,21 @@ func NewReportHandler(entryRepo *repository.EntryRepository, loc *time.Location)
 // ReportsPage renders the reports page
 func (h *ReportHandler) ReportsPage(w http.ResponseWriter, r *http.Request) {
 	startDate, endDate := defaultReportDateStrings(time.Now().In(h.loc))
-	pages.ReportsPage(startDate, endDate).Render(r.Context(), w)
+	pages.ReportsPage(startDate, endDate, bookmarkletURL(middleware.RequestOrigin(r))).Render(r.Context(), w)
+}
+
+// bookmarkletURL returns a javascript: URL that opens the capture page at
+// origin with the current tab's URL prefilled, or "" without an origin. The
+// origin is the one SameOrigin checks logins against, so it is the address
+// the browser actually uses, even behind a proxy.
+func bookmarkletURL(origin string) string {
+	if origin == "" {
+		return ""
+	}
+	target, _ := json.Marshal(origin + "/?url=") // a quoted JS string; strings always marshal
+	// Browsers percent-decode a javascript: URL before running it.
+	script := strings.ReplaceAll(string(target), "%", "%25") + "+encodeURIComponent(location.href)"
+	return "javascript:location=" + script
 }
 
 func defaultReportDateStrings(today time.Time) (string, string) {

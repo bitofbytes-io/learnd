@@ -45,3 +45,51 @@ func TestReportsPagePrefillsDefaultDateRange(t *testing.T) {
 		t.Fatalf("ReportsPage() body missing date picker blur behavior")
 	}
 }
+
+func TestReportsPageBookmarkletUsesRequestOrigin(t *testing.T) {
+	handler := NewReportHandler(nil, time.UTC)
+	req := httptest.NewRequest(http.MethodGet, "http://learnd.example.com/reports", nil)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rec := httptest.NewRecorder()
+
+	handler.ReportsPage(rec, req)
+
+	// templ HTML-escapes the attribute; the browser decodes it back to
+	// javascript:location="https://learnd.example.com/?url="+encodeURIComponent(location.href)
+	want := `href="javascript:location=&#34;https://learnd.example.com/?url=&#34;+encodeURIComponent(location.href)"`
+	if body := rec.Body.String(); !strings.Contains(body, want) {
+		t.Fatalf("ReportsPage() body missing bookmarklet %s", want)
+	}
+}
+
+func TestBookmarkletURL(t *testing.T) {
+	tests := []struct {
+		name   string
+		origin string
+		want   string
+	}{
+		{
+			name:   "origin",
+			origin: "http://localhost:4500",
+			want:   `javascript:location="http://localhost:4500/?url="+encodeURIComponent(location.href)`,
+		},
+		{
+			name:   "no origin",
+			origin: "",
+			want:   "",
+		},
+		{
+			name:   "quotes and percent stay inside the string",
+			origin: `http://[fe80::1%25eth0]"`,
+			want:   `javascript:location="http://[fe80::1%2525eth0]\"/?url="+encodeURIComponent(location.href)`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := bookmarkletURL(tt.origin); got != tt.want {
+				t.Fatalf("bookmarkletURL(%q) = %q, want %q", tt.origin, got, tt.want)
+			}
+		})
+	}
+}
