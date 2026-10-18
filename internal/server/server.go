@@ -15,14 +15,16 @@ import (
 type Server struct {
 	cfg            *config.Config
 	entryRepo      *repository.EntryRepository
+	db             handler.Pinger
 	summaryEnabled bool
 }
 
 // New creates a new Server
-func New(cfg *config.Config, entryRepo *repository.EntryRepository, summaryEnabled bool) *Server {
+func New(cfg *config.Config, entryRepo *repository.EntryRepository, db handler.Pinger, summaryEnabled bool) *Server {
 	return &Server{
 		cfg:            cfg,
 		entryRepo:      entryRepo,
+		db:             db,
 		summaryEnabled: summaryEnabled,
 	}
 }
@@ -55,11 +57,13 @@ func (s *Server) Router() http.Handler {
 		r.Get("/"+file, serveStaticFile("static/"+file))
 	}
 
+	// /health means the process is up; /ready also checks the database.
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+	r.Get("/ready", handler.NewReadyHandler(s.db).Ready)
 
 	// Auth handlers
 	authHandler := handler.NewAuthHandler(s.cfg.APIToken, s.cfg.SecureCookies)

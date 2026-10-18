@@ -89,7 +89,7 @@ docker run --rm --name learnd --network learnd \
   learnd:local
 ```
 
-Open <http://localhost:4500> and sign in with the configured `API_TOKEN`. The health endpoint is <http://localhost:4500/health>.
+Open <http://localhost:4500> and sign in with the configured `API_TOKEN`. Neither probe needs auth: <http://localhost:4500/health> returns `ok` while the process is up, and <http://localhost:4500/ready> pings the database (2 s timeout, one ping at a time, result reused for 1 s) and returns `{"status":"ok","db":"ok"}`, or HTTP 503 with `{"status":"degraded","db":"error"}` when the database is unreachable.
 
 The optional Google keys are independent: omit the Gemini key to disable summaries, or omit the YouTube key to disable YouTube-specific enrichment. For production, restrict enabled keys to their intended APIs and load them from a secret manager.
 

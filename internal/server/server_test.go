@@ -10,19 +10,65 @@ import (
 	"time"
 
 	"github.com/drywaters/learnd/internal/config"
+	"github.com/drywaters/learnd/internal/handler"
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/testdb"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const testAPIToken = "test-api-token"
 
 func newTestRouter(t *testing.T) (http.Handler, *repository.EntryRepository) {
 	t.Helper()
-	repo := repository.NewEntryRepository(testdb.New(t))
+	pool := testdb.New(t)
+	repo := repository.NewEntryRepository(pool)
 	cfg := &config.Config{APIToken: testAPIToken, SecureCookies: true, Location: time.UTC}
-	return New(cfg, repo, false).Router(), repo
+	return New(cfg, repo, pool, false).Router(), repo
 }
+
+// Probes run without credentials, so /health and /ready must stay outside
+// the auth group. An unreachable database turns /ready into a 503 while
+// /health keeps reporting that the process is up.
+func TestProbesBypassAuth(t *testing.T) {
+	unreachable, err := pgxpool.New(context.Background(), "postgres://learnd:secret@127.0.0.1:1/learnd?sslmode=disable&connect_timeout=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(unreachable.Close)
+
+	cfg := &config.Config{APIToken: testAPIToken, SecureCookies: true, Location: time.UTC}
+	tests := []struct {
+		name     string
+		db       handler.Pinger
+		path     string
+		wantCode int
+		wantBody string
+	}{
+		{"health", unreachable, "/health", http.StatusOK, "ok"},
+		{"ready ok", pingerFunc(func(context.Context) error { return nil }), "/ready", http.StatusOK, `{"status":"ok","db":"ok"}`},
+		{"ready unreachable db", unreachable, "/ready", http.StatusServiceUnavailable, `{"status":"degraded","db":"error"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := New(cfg, nil, tt.db, false).Router()
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+
+			if rec.Code != tt.wantCode {
+				t.Fatalf("GET %s status = %d, want %d: %s", tt.path, rec.Code, tt.wantCode, rec.Body.String())
+			}
+			if got := strings.TrimSpace(rec.Body.String()); got != tt.wantBody {
+				t.Fatalf("GET %s body = %q, want %q", tt.path, got, tt.wantBody)
+			}
+		})
+	}
+}
+
+type pingerFunc func(context.Context) error
+
+func (f pingerFunc) Ping(ctx context.Context) error { return f(ctx) }
 
 // The iOS Shortcut posts a form to /api/entries with a Bearer token and no
 // Origin header. This guards that path through the real router and auth

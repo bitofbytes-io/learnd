@@ -117,7 +117,7 @@ func run() error {
 	bgWorker.Start(ctx)
 
 	// Create server
-	srv := server.New(cfg, entryRepo, sum != nil)
+	srv := server.New(cfg, entryRepo, pool, sum != nil)
 
 	// Start HTTP server
 	httpServer := &http.Server{
