@@ -188,24 +188,24 @@ func TestGetReportShowsNoChartWithoutTrackedTime(t *testing.T) {
 
 func TestGetReportCountsDaysLearnedThisMonth(t *testing.T) {
 	h, pool := newReportTestHandler(t)
-	now := time.Now().In(h.loc)
-	year, month, day := now.Date()
-	firstOfMonth := time.Date(year, month, 1, 12, 0, 0, 0, h.loc)
-	seedReportEntries(t, pool,
-		reportSeed{createdAt: now, url: "https://example.test/today"},
-		reportSeed{createdAt: now.Add(-time.Second), url: "https://example.test/today-again"},
-		reportSeed{createdAt: firstOfMonth, url: "https://example.test/first"},
-		reportSeed{createdAt: time.Date(year, month, 1, 0, 0, 0, 0, h.loc).Add(-time.Minute), url: "https://example.test/last-month"},
-	)
-	wantDays := 2
-	if day == 1 {
-		wantDays = 1 // today is the first of the month
+	local := func(month time.Month, day, hour, min, sec int) time.Time {
+		return time.Date(2026, month, day, hour, min, sec, 0, h.loc)
 	}
+	// Just after midnight on Sunday, October 18, in New York.
+	h.now = func() time.Time { return local(time.October, 18, 0, 0, 30) }
+	seedReportEntries(t, pool,
+		reportSeed{createdAt: local(time.October, 18, 0, 0, 10), url: "https://example.test/today"},
+		reportSeed{createdAt: local(time.October, 18, 0, 0, 20), url: "https://example.test/today-again"},
+		reportSeed{createdAt: local(time.October, 17, 23, 59, 59), url: "https://example.test/yesterday"},
+		reportSeed{createdAt: local(time.October, 1, 0, 0, 0), url: "https://example.test/first"},
+		reportSeed{createdAt: local(time.September, 30, 23, 59, 59), url: "https://example.test/last-month"},
+		reportSeed{createdAt: local(time.October, 19, 0, 0, 0), url: "https://example.test/tomorrow"},
+	)
 
 	// The count covers this month whatever range the report shows.
 	body := serveReport(h.GetReport, "/api/reports?start=2026-03-01&end=2026-03-07").Body.String()
 
-	want := fmt.Sprintf(`Learned on <span class="font-medium" style="color: var(--color-ink);">%d</span> of %d days this month`, wantDays, day)
+	want := `Learned on <span class="font-medium" style="color: var(--color-ink);">3</span> of 18 days this month`
 	if !strings.Contains(body, want) {
 		t.Fatalf("GetReport() body missing %q: %s", want, body)
 	}

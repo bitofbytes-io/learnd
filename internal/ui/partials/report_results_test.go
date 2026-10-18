@@ -31,6 +31,9 @@ func TestWeeklyChartScalesBarsToThePeakWeek(t *testing.T) {
 		`<title>Week of Oct 12: 45 min, 1 entry</title>`,
 		`>1 hr 30 min</div>`, // the peak labels the top of the scale
 		`>Oct 5</span>`,      // empty weeks keep their label but get no bar
+		`<div aria-hidden="true">`,
+		// Screen readers get every week, since the tooltips need a mouse.
+		`<ul class="sr-only"><li>Week of Sep 28: 1 hr 30 min, 2 entries</li><li>Week of Oct 5: 0 min, 0 entries</li><li>Week of Oct 12: 45 min, 1 entry</li></ul>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("weekly chart missing %s: %s", want, body)
@@ -68,5 +71,11 @@ func TestWeeklyChartWithoutTrackedTime(t *testing.T) {
 	}
 	if want := `Learned on <span class="font-medium" style="color: var(--color-ink);">4</span> of 18 days this month`; !strings.Contains(body, want) {
 		t.Fatalf("chart missing days learned %q: %s", want, body)
+	}
+
+	// A trimmed range may hold older tracked time, so say which weeks were empty.
+	trimmed := renderWeeklyChart(t, ReportData{ByWeek: []WeekReport{{Label: "Oct 5"}, {Label: "Oct 12"}}, ByWeekTrimmed: true})
+	if !strings.Contains(trimmed, "No time tracked in the last 2 weeks.") || strings.Contains(trimmed, "in this range") {
+		t.Fatalf("trimmed chart without tracked time: %s", trimmed)
 	}
 }

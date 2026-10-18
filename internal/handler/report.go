@@ -23,6 +23,7 @@ import (
 type ReportHandler struct {
 	entryRepo *repository.EntryRepository
 	loc       *time.Location
+	now       func() time.Time // the clock "this month" is read from; tests replace it
 }
 
 // NewReportHandler creates a new ReportHandler. Report dates are calendar
@@ -31,6 +32,7 @@ func NewReportHandler(entryRepo *repository.EntryRepository, loc *time.Location)
 	return &ReportHandler{
 		entryRepo: entryRepo,
 		loc:       loc,
+		now:       time.Now,
 	}
 }
 
@@ -162,7 +164,7 @@ func startOfDay(date time.Time, loc *time.Location) time.Time {
 // GetReport generates a report for the specified date range
 func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	today := time.Now().In(h.loc)
+	today := h.now().In(h.loc)
 
 	rng, err := parseReportRange(r.URL.Query(), today)
 	if err != nil {

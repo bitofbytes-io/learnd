@@ -105,46 +105,56 @@ templ weeklyChart(data ReportData) {
 			</p>
 		</div>
 		if peak := maxWeekTime(data.ByWeek); peak > 0 {
-			<div class="text-xs mb-1" style="color: var(--color-ink-lighter);">{ formatDuration(peak) }</div>
-			<svg
-				viewBox={ weekChartViewBox(data.ByWeek) }
-				preserveAspectRatio="none"
-				class="block w-full h-32"
-				style="border-top: 1px dashed var(--color-warm-gray); border-bottom: 1px solid var(--color-warm-gray);"
-				role="img"
-				aria-label="Time tracked per week"
-			>
-				for i, week := range data.ByWeek {
-					if week.Time > 0 {
-						<rect
-							x={ weekBarX(i) }
-							y={ fmt.Sprintf("%g", weekChartHeight-weekBarHeight(week.Time, peak)) }
-							width={ fmt.Sprintf("%d", weekBarWidth) }
-							height={ fmt.Sprintf("%g", weekBarHeight(week.Time, peak)) }
-							style="fill: var(--color-accent);"
-						>
-							<title>{ weekBarTitle(week) }</title>
-						</rect>
+			<!-- The bars' tooltips need a mouse; the list below reads them out -->
+			<div aria-hidden="true">
+				<div class="text-xs mb-1" style="color: var(--color-ink-lighter);">{ formatDuration(peak) }</div>
+				<svg
+					viewBox={ weekChartViewBox(data.ByWeek) }
+					preserveAspectRatio="none"
+					class="block w-full h-32"
+					style="border-top: 1px dashed var(--color-warm-gray); border-bottom: 1px solid var(--color-warm-gray);"
+				>
+					for i, week := range data.ByWeek {
+						if week.Time > 0 {
+							<rect
+								x={ weekBarX(i) }
+								y={ fmt.Sprintf("%g", weekChartHeight-weekBarHeight(week.Time, peak)) }
+								width={ fmt.Sprintf("%d", weekBarWidth) }
+								height={ fmt.Sprintf("%g", weekBarHeight(week.Time, peak)) }
+								style="fill: var(--color-accent);"
+							>
+								<title>{ weekBarTitle(week) }</title>
+							</rect>
+						}
 					}
+				</svg>
+				if len(data.ByWeek) <= maxLabeledWeeks {
+					<div class="flex mt-2 text-xs" style="color: var(--color-ink-lighter);">
+						for _, week := range data.ByWeek {
+							<span class="flex-1 min-w-0 text-center whitespace-nowrap">{ week.Label }</span>
+						}
+					</div>
+				} else {
+					<div class="flex justify-between mt-2 text-xs" style="color: var(--color-ink-lighter);">
+						<span>{ data.ByWeek[0].Label }</span>
+						<span>{ data.ByWeek[len(data.ByWeek)-1].Label }</span>
+					</div>
 				}
-			</svg>
-			if len(data.ByWeek) <= maxLabeledWeeks {
-				<div class="flex mt-2 text-xs" style="color: var(--color-ink-lighter);">
-					for _, week := range data.ByWeek {
-						<span class="flex-1 min-w-0 text-center whitespace-nowrap">{ week.Label }</span>
-					}
-				</div>
-			} else {
-				<div class="flex justify-between mt-2 text-xs" style="color: var(--color-ink-lighter);">
-					<span>{ data.ByWeek[0].Label }</span>
-					<span>{ data.ByWeek[len(data.ByWeek)-1].Label }</span>
-				</div>
-			}
+			</div>
+			<ul class="sr-only">
+				for _, week := range data.ByWeek {
+					<li>{ weekBarTitle(week) }</li>
+				}
+			</ul>
 			if data.ByWeekTrimmed {
 				<p class="text-xs mt-3 text-center" style="color: var(--color-ink-lighter);">
 					Showing the last { fmt.Sprintf("%d", len(data.ByWeek)) } weeks.
 				</p>
 			}
+		} else if data.ByWeekTrimmed {
+			<p class="text-sm text-center py-8" style="color: var(--color-ink-lighter);">
+				No time tracked in the last { fmt.Sprintf("%d", len(data.ByWeek)) } weeks.
+			</p>
 		} else {
 			<p class="text-sm text-center py-8" style="color: var(--color-ink-lighter);">No time tracked in this range.</p>
 		}
