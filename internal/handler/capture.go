@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/ui"
 	"github.com/drywaters/learnd/internal/ui/pages"
+	"github.com/drywaters/learnd/internal/urlutil"
 )
 
 const dashboardPageSize = 20
@@ -63,13 +66,30 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check for URL prefill from query param
-	prefillURL := r.URL.Query().Get("url")
+	prefillURL := sharedPrefillURL(r.URL.Query())
 
 	if err := pages.CapturePage(entryViews, pagination, prefillURL).Render(ctx, w); err != nil {
 		// Log only - response may already be partially written, can't send clean http.Error
 		slog.Error("failed to render page", "handler", "CapturePage", "error", err)
 	}
+}
+
+// sharedPrefillURL picks the URL to prefill from ?url= or, failing that, the
+// first link in ?text= (Android share targets usually send the link there).
+// Invalid URLs are dropped silently so a bad share just leaves the field empty.
+func sharedPrefillURL(q url.Values) string {
+	if valid, err := urlutil.ValidateSourceURL(q.Get("url")); err == nil {
+		return valid
+	}
+	for _, token := range strings.Fields(q.Get("text")) {
+		if !strings.HasPrefix(strings.ToLower(token), "http") {
+			continue
+		}
+		if valid, err := urlutil.ValidateSourceURL(strings.TrimRight(token, ".,;:!?")); err == nil {
+			return valid
+		}
+	}
+	return ""
 }
 
 func parseDashboardPage(r *http.Request) int {
