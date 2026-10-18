@@ -115,6 +115,40 @@ func TestSearchFollowsEdits(t *testing.T) {
 	}
 }
 
+func TestCountFilteredScopedToEntry(t *testing.T) {
+	pool := testdb.New(t)
+	repo := NewEntryRepository(pool)
+	seedSearchEntries(t, pool,
+		searchSeed{url: "https://example.test/a", title: "Rust ownership", tag: "rust"},
+		searchSeed{url: "https://example.test/b", title: "Rust lifetimes", tag: "rust"},
+	)
+	entries, err := repo.List(context.Background(), ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := entries[0].ID // https://example.test/b
+	ptr := func(s string) *string { return &s }
+
+	for _, tt := range []struct {
+		opts ListOptions
+		want int
+	}{
+		{ListOptions{ID: &id}, 1},
+		{ListOptions{ID: &id, Tag: ptr("rust")}, 1},
+		{ListOptions{ID: &id, Query: ptr("lifetimes")}, 1},
+		{ListOptions{ID: &id, Query: ptr("ownership")}, 0},
+		{ListOptions{ID: &id, Query: ptr("rust -lifetimes")}, 0},
+	} {
+		got, err := repo.CountFiltered(context.Background(), tt.opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != tt.want {
+			t.Fatalf("CountFiltered(%+v) = %d, want %d", tt.opts, got, tt.want)
+		}
+	}
+}
+
 func TestListTagsReturnsDistinctSortedTags(t *testing.T) {
 	pool := testdb.New(t)
 	repo := NewEntryRepository(pool)

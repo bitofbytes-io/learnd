@@ -322,19 +322,36 @@ func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enrichment can reclassify an entry out of the dashboard's type filter;
-	// an empty body removes its row. Tags never change during enrichment.
-	if returnTo := dashboardReturnTo(r); returnTo != "" {
-		if parsed, err := url.Parse(returnTo); err == nil {
-			filter := parseDashboardFilter(parsed.Query())
-			if filter.SourceType != "" && string(entry.SourceType) != filter.SourceType {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-		}
+	// Enrichment or an edit elsewhere can move an entry out of the dashboard's
+	// filters; an empty body removes its row.
+	if !h.matchesDashboardFilter(r, id) {
+		w.WriteHeader(http.StatusOK)
+		return
 	}
 
 	h.renderRow(w, r, entry)
+}
+
+// matchesDashboardFilter reports whether entry id still matches the filters of
+// the dashboard that sent the request. It reports true when the request is not
+// from a filtered dashboard or the check fails, so the row keeps updating.
+func (h *EntryHandler) matchesDashboardFilter(r *http.Request, id uuid.UUID) bool {
+	parsed, err := url.Parse(dashboardReturnTo(r))
+	if err != nil {
+		return true
+	}
+	filter := parseDashboardFilter(parsed.Query())
+	if !filter.Active() {
+		return true
+	}
+	opts := dashboardListOptions(filter)
+	opts.ID = &id
+	count, err := h.entryRepo.CountFiltered(r.Context(), opts)
+	if err != nil {
+		slog.Error("failed to check dashboard filter", "handler", "Status", "id", id, "error", err)
+		return true
+	}
+	return count > 0
 }
 
 // parseEntryID reads the {id} route parameter. When it is not a UUID it writes

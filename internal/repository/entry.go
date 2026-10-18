@@ -70,6 +70,8 @@ type ListOptions struct {
 	Query      *string
 	Tag        *string
 	SourceType *model.SourceType
+	// ID narrows the filters to one entry, to check whether it still matches.
+	ID *uuid.UUID
 }
 
 // filter returns the WHERE clause for the options' filters and its arguments,
@@ -89,6 +91,9 @@ func (opts ListOptions) filter() (string, []any) {
 	}
 	if opts.SourceType != nil {
 		add(`source_type = $%d`, string(*opts.SourceType))
+	}
+	if opts.ID != nil {
+		add(`id = $%d`, *opts.ID)
 	}
 	if len(conditions) == 0 {
 		return "", nil

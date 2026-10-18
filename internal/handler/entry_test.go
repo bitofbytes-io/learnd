@@ -730,11 +730,23 @@ func TestEditPage(t *testing.T) {
 	}
 }
 
-func TestStatusRemovesRowsReclassifiedOutOfTypeFilter(t *testing.T) {
+func TestStatusRemovesRowsThatLeaveTheDashboardFilter(t *testing.T) {
 	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440020")
 	mock := &mockEntryRepo{
 		getByIDFn: func(ctx context.Context, reqID uuid.UUID) (*model.Entry, error) {
 			return createTestEntry(id), nil // enriched as an article
+		},
+		countFilteredFn: func(_ context.Context, opts repository.ListOptions) (int, error) {
+			if opts.ID == nil || *opts.ID != id {
+				t.Fatalf("CountFiltered() id = %v, want %s", opts.ID, id)
+			}
+			if opts.Query != nil && *opts.Query == "broken" {
+				return 0, errors.New("database error")
+			}
+			if opts.SourceType != nil && *opts.SourceType != model.SourceTypeArticle {
+				return 0, nil
+			}
+			return 1, nil
 		},
 	}
 	router := setupTestHandler(mock)
@@ -743,6 +755,7 @@ func TestStatusRemovesRowsReclassifiedOutOfTypeFilter(t *testing.T) {
 		"https://learnd.test/?type=other":           false,
 		"https://learnd.test/?type=article":         true,
 		"https://learnd.test/?q=test":               true,
+		"https://learnd.test/?q=broken":             true, // a failed check keeps the row
 		"https://learnd.test/":                      true,
 		"https://learnd.test/entries/x/edit?type=x": true,
 	} {
