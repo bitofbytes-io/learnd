@@ -38,7 +38,7 @@ func TestAuthRejectsInvalidBearer(t *testing.T) {
 
 func TestAuthRejectsCookieUnsafeMethodWithoutOrigin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "http://learnd.example/api/entries", nil)
-	req.AddCookie(&http.Cookie{Name: cookieName, Value: "secret"})
+	req.AddCookie(&http.Cookie{Name: cookieName, Value: "secret"}) // #nosec G124 -- request cookie fixture; browser response flags are not transmitted here.
 	rec := httptest.NewRecorder()
 
 	Auth("secret", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +53,7 @@ func TestAuthRejectsCookieUnsafeMethodWithoutOrigin(t *testing.T) {
 func TestAuthAllowsCookieUnsafeMethodWithSameOrigin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "http://learnd.example/api/entries", nil)
 	req.Header.Set("Origin", "http://learnd.example")
-	req.AddCookie(&http.Cookie{Name: cookieName, Value: "secret"})
+	req.AddCookie(&http.Cookie{Name: cookieName, Value: "secret"}) // #nosec G124 -- request cookie fixture; browser response flags are not transmitted here.
 	rec := httptest.NewRecorder()
 	called := false
 

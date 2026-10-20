@@ -23,7 +23,7 @@ func New(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("migrations: %v", err)
 	}
 	for _, file := range files {
-		content, err := os.ReadFile(file)
+		content, err := os.ReadFile(file) // #nosec G304 -- glob is rooted in this test helper’s repository migrations directory.
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -51,7 +51,7 @@ func Auth(apiToken string, secureCookies bool) func(http.Handler) http.Handler {
 				// Invalid cookie, clear it and redirect
 				slog.Info("browser authentication failed", "reason", "invalid_cookie", "path", r.URL.Path)
 				metrics.LoginFailure(metrics.ReasonInvalidCookie)
-				http.SetCookie(w, &http.Cookie{
+				http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure is operator-configurable for local HTTP; HttpOnly and SameSite stay enabled.
 					Name:     cookieName,
 					Value:    "",
 					Path:     "/",

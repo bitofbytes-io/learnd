@@ -67,7 +67,7 @@ func TestValidateSourceURLRejectsUnsafeURLs(t *testing.T) {
 	}{
 		{name: "relative", raw: "example.com/path"},
 		{name: "unsafe scheme", raw: "javascript://example.com/%0aalert(1)"},
-		{name: "userinfo", raw: "https://user:pass@example.com/path"},
+		{name: "userinfo", raw: "https://user:pass@example.com/path"}, // #nosec G101 -- synthetic URL credential rejection fixture.
 		{name: "localhost", raw: "http://localhost:8080/path"},
 		{name: "private ip", raw: "http://192.168.1.10/path"},
 		{name: "reserved ip", raw: "http://203.0.113.10/path"},

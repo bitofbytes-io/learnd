@@ -40,7 +40,10 @@ func (h *AuthHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
 
 	errorType := r.URL.Query().Get("error")
 	redirectURL := r.URL.Query().Get("redirect")
-	pages.LoginPage(errorType, redirectURL).Render(r.Context(), w)
+	if err := pages.LoginPage(errorType, redirectURL).Render(r.Context(), w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+		return
+	}
 }
 
 // Login handles the login form submission
@@ -69,7 +72,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set the session cookie with the token value
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure is operator-configurable for local HTTP; HttpOnly and SameSite stay enabled.
 		Name:     cookieName,
 		Value:    h.apiToken,
 		Path:     "/",
@@ -113,7 +116,7 @@ func sanitizeRedirectForLog(rawURL string) string {
 // Logout clears the session cookie
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	// Clear the cookie
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure is operator-configurable for local HTTP; HttpOnly and SameSite stay enabled.
 		Name:     cookieName,
 		Value:    "",
 		Path:     "/",

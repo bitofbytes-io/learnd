@@ -222,8 +222,8 @@ func TestParseReportRange(t *testing.T) {
 			// Havana skips from 00:00 to 01:00 on March 8, 2020; time.Date normalizes that midnight to 23:00 on March 7.
 			wantStart: time.Date(2020, 3, 8, 5, 0, 0, 0, time.UTC), wantEnd: time.Date(2020, 3, 9, 4, 0, 0, 0, time.UTC),
 		},
-		{name: "invalid start", query: "start=2026-02-30", wantErr: "Invalid start date"},
-		{name: "invalid end", query: "end=11/02/2026", wantErr: "Invalid end date"},
+		{name: "invalid start", query: "start=2026-02-30", wantErr: "invalid start date"},
+		{name: "invalid end", query: "end=11/02/2026", wantErr: "invalid end date"},
 	}
 
 	for _, tt := range tests {

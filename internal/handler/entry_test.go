@@ -1088,7 +1088,7 @@ func TestUpdate(t *testing.T) {
 			},
 			mockSetup:      func(m *mockEntryRepo) {},
 			expectedStatus: http.StatusUnprocessableEntity,
-			expectedBody:   "Invalid tag",
+			expectedBody:   "invalid tag",
 		},
 	}
 

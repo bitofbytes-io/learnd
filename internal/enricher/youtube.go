@@ -77,7 +77,7 @@ func (e *YouTubeEnricher) Enrich(ctx context.Context, rawURL string) (*Result, e
 		}
 		return nil, fmt.Errorf("failed to fetch YouTube API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("YouTube API error: %d", resp.StatusCode)

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -163,5 +164,64 @@ func TestUpdateLeavesOmittedFieldsUnchanged(t *testing.T) {
 	}
 	if entry.SourceType != model.SourceTypeOther || entry.Quantity == nil || *entry.Quantity != 3 {
 		t.Fatalf("type=%s quantity=%v, want unchanged", entry.SourceType, entry.Quantity)
+	}
+}
+
+func TestPublicRouterSecurityHeaders(t *testing.T) {
+	cfg := &config.Config{APIToken: testAPIToken, SecureCookies: true, Location: time.UTC}
+	router := New(cfg, nil, pingerFunc(func(context.Context) error {
+		return errors.New("database unavailable")
+	}), false).Router()
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		token  string
+		status int
+	}{
+		{"health", http.MethodGet, "/health", "", "", http.StatusOK},
+		{"login", http.MethodGet, "/login", "", "", http.StatusOK},
+		{"protected redirect", http.MethodGet, "/", "", "", http.StatusSeeOther},
+		{"login redirect", http.MethodPost, "/login", "api_key=" + testAPIToken, "", http.StatusSeeOther},
+		{"not found", http.MethodGet, "/does-not-exist", "", "", http.StatusNotFound},
+		{"database error", http.MethodGet, "/ready", "", "", http.StatusServiceUnavailable},
+		{"protected page", http.MethodGet, "/reports", "", testAPIToken, http.StatusOK},
+		{"invalid bearer", http.MethodGet, "/", "", "wrong-token", http.StatusUnauthorized},
+		{"cross-origin login", http.MethodPost, "/login", "", "", http.StatusForbidden},
+		{"protected bad input", http.MethodGet, "/entries/not-a-uuid/edit", "", testAPIToken, http.StatusBadRequest},
+		{"recovered panic", http.MethodGet, "/", "", testAPIToken, http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			if tt.body != "" {
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				req.Header.Set("Origin", "http://example.com")
+			}
+			if tt.token != "" {
+				req.Header.Set("Authorization", "Bearer "+tt.token)
+			}
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != tt.status {
+				t.Fatalf("status = %d, want %d: %s", rec.Code, tt.status, rec.Body.String())
+			}
+			for name, want := range map[string]string{
+				"X-Content-Type-Options": "nosniff",
+				"Referrer-Policy":        "same-origin",
+				"X-Frame-Options":        "DENY",
+				"Content-Security-Policy": "default-src 'self'; " +
+					"script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+					"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+					"font-src 'self' https://fonts.gstatic.com; " +
+					"img-src 'self' data:; connect-src 'self'; " +
+					"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+			} {
+				if got := rec.Header().Get(name); got != want {
+					t.Errorf("%s = %q, want %q", name, got, want)
+				}
+			}
+		})
 	}
 }

@@ -79,7 +79,7 @@ func (e *PodcastEnricher) Enrich(ctx context.Context, rawURL string) (*Result, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
@@ -139,13 +139,10 @@ func extractPodcastMetadata(n *html.Node, result *Result) {
 				result.Description = content
 			}
 		case "music:duration":
-			// Duration in seconds
-			if content != "" {
-				var seconds int
-				fmt.Sscanf(content, "%d", &seconds)
-				if seconds > 0 {
-					result.RuntimeSeconds = &seconds
-				}
+			// Require the whole value to be a positive integer so malformed
+			// metadata cannot suppress a valid JSON-LD duration below.
+			if seconds, err := strconv.Atoi(strings.TrimSpace(content)); err == nil && seconds > 0 {
+				result.RuntimeSeconds = &seconds
 			}
 		case "music:release_date":
 			if content != "" {

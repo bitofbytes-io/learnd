@@ -26,7 +26,7 @@ func scrape(t *testing.T, reg *prometheus.Registry) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
@@ -201,7 +201,7 @@ func TestHandlerServesOnlyMetrics(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode != want {
 			t.Errorf("GET %s = %d, want %d", path, resp.StatusCode, want)
 		}
@@ -210,7 +210,7 @@ func TestHandlerServesOnlyMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("POST /metrics = %d, want %d", resp.StatusCode, http.StatusMethodNotAllowed)
 	}
@@ -222,12 +222,12 @@ func TestStartServesMetricsAndShutsDown(t *testing.T) {
 		t.Fatal("Start returned nil for a free address")
 	}
 	url := "http://" + srv.Addr().String() + "/metrics"
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) // #nosec G107 -- URL is the loopback test listener created above.
 	if err != nil {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "learnd_jobs_total") {
 		t.Fatalf("GET /metrics = %d: %.200s", resp.StatusCode, body)
 	}
@@ -237,7 +237,8 @@ func TestStartServesMetricsAndShutsDown(t *testing.T) {
 	if err := srv.Shutdown(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := http.Get(url); err == nil {
+	if resp, err := http.Get(url); err == nil { // #nosec G107 -- probes the same loopback test listener after shutdown.
+		_ = resp.Body.Close()
 		t.Fatal("metrics listener still serving after Shutdown")
 	}
 }
@@ -251,7 +252,7 @@ func TestStartIsOptional(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer taken.Close()
+	defer func() { _ = taken.Close() }()
 	srv := Start(taken.Addr().String(), NewRegistry())
 	if srv != nil {
 		t.Fatal("Start should return nil when the address is in use")

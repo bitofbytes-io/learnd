@@ -5,16 +5,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 func TestYouTubeEnrichTransportErrorOmitsAPIKey(t *testing.T) {
 	const apiKey = "secret-youtube-key"
+	var requestMu sync.Mutex
 	var gotHeader, gotQuery string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestMu.Lock()
 		gotHeader = r.Header.Get("X-Goog-Api-Key")
 		gotQuery = r.URL.RawQuery
+		requestMu.Unlock()
 		conn, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
 			t.Errorf("hijack: %v", err)
@@ -35,6 +39,10 @@ func TestYouTubeEnrichTransportErrorOmitsAPIKey(t *testing.T) {
 	if strings.Contains(err.Error(), apiKey) {
 		t.Fatalf("Enrich() error leaks API key: %q", err)
 	}
+	// The handler runs in another goroutine; a transport error alone does
+	// not synchronize access to the captured request fields.
+	requestMu.Lock()
+	defer requestMu.Unlock()
 	if gotHeader != apiKey {
 		t.Fatalf("X-Goog-Api-Key = %q, want %q", gotHeader, apiKey)
 	}

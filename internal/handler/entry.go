@@ -70,7 +70,9 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 				title = *existing.Title
 			}
 
-			partials.DuplicateWarning(true, title, existing.CreatedAt).Render(ctx, w)
+			if err := partials.DuplicateWarning(true, title, existing.CreatedAt).Render(ctx, w); err != nil {
+				slog.Warn("response render stopped", "error", err)
+			}
 			return
 		}
 	}
@@ -116,13 +118,21 @@ func (h *EntryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	h.renderDuplicateRows(w, r, entry.NormalizedURL, entry.ID)
 
 	// Render OOB swap to remove empty state
-	partials.EmptyState(false, true).Render(ctx, w)
+	if err := partials.EmptyState(false, true).Render(ctx, w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+		return
+	}
 
 	// Clear duplicate warning
-	partials.DuplicateWarning(false, "", time.Time{}).Render(ctx, w)
+	if err := partials.DuplicateWarning(false, "", time.Time{}).Render(ctx, w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+		return
+	}
 
 	// Clear form error
-	fmt.Fprint(w, `<div id="form-error" hx-swap-oob="true"></div>`)
+	if _, err := fmt.Fprint(w, `<div id="form-error" hx-swap-oob="true"></div>`); err != nil {
+		slog.Warn("response write stopped", "error", err)
+	}
 }
 
 // EditPage renders the edit form for an entry
@@ -153,7 +163,10 @@ func (h *EntryHandler) EditPage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Warn("failed to list tags", "handler", "EditPage", "id", id, "error", err)
 	}
-	pages.EditPage(entryView, returnTo, tags).Render(ctx, w)
+	if err := pages.EditPage(entryView, returnTo, tags).Render(ctx, w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+		return
+	}
 }
 
 // Update updates an entry. Form fields the request omits keep their stored
@@ -255,7 +268,10 @@ func (h *EntryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	h.htmxToast(w, "Entry deleted", &id, "")
 
 	// Render OOB swap for empty state (show if no entries left)
-	partials.EmptyState(count == 0, true).Render(ctx, w)
+	if err := partials.EmptyState(count == 0, true).Render(ctx, w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+		return
+	}
 
 	h.renderDuplicateRows(w, r, normalizedURL, id)
 }
@@ -374,7 +390,10 @@ func parseEntryID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 func (h *EntryHandler) renderRow(w http.ResponseWriter, r *http.Request, entry *model.Entry) {
 	entryView := buildEntryView(entry, getDuplicateCount(r.Context(), h.entryRepo, entry), h.summaryEnabled)
 	stampDashboardEntryViewFromRequest(r, &entryView)
-	partials.EntryRow(entryView).Render(r.Context(), w)
+	if err := partials.EntryRow(entryView).Render(r.Context(), w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+		return
+	}
 }
 
 // renderDuplicateRows re-renders, out of band, every entry sharing
@@ -393,7 +412,10 @@ func (h *EntryHandler) renderDuplicateRows(w http.ResponseWriter, r *http.Reques
 		}
 		duplicateView := buildEntryView(&duplicate, len(duplicates), h.summaryEnabled)
 		duplicateView.SwapOOB = true
-		partials.EntryRow(duplicateView).Render(r.Context(), w)
+		if err := partials.EntryRow(duplicateView).Render(r.Context(), w); err != nil {
+			slog.Warn("response render stopped", "error", err)
+			return
+		}
 	}
 }
 
@@ -496,7 +518,9 @@ func (h *EntryHandler) htmxError(w http.ResponseWriter, msg string) {
 	w.Header().Set("HX-Retarget", "#form-error")
 	w.Header().Set("HX-Reswap", "innerHTML")
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	fmt.Fprintf(w, `<p class="text-sm" style="color: var(--color-error);">%s</p>`, html.EscapeString(msg))
+	if _, err := fmt.Fprintf(w, `<p class="text-sm" style="color: var(--color-error);">%s</p>`, html.EscapeString(msg)); err != nil {
+		slog.Warn("response write stopped", "error", err)
+	}
 }
 
 func (h *EntryHandler) htmxToast(w http.ResponseWriter, msg string, entryID *uuid.UUID, toastType string) {
@@ -528,7 +552,7 @@ func parseTag(tagStr string) (*string, error) {
 		return nil, nil
 	}
 	if !tagRegex.MatchString(tag) {
-		return nil, fmt.Errorf("Invalid tag: only lowercase letters, numbers, and hyphens are allowed")
+		return nil, fmt.Errorf("invalid tag: only lowercase letters, numbers, and hyphens are allowed")
 	}
 	return &tag, nil
 }
