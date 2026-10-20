@@ -6,7 +6,8 @@ Learnd is a self-hosted learning journal for saving articles, videos, podcasts, 
 
 - Docker 24+
 - PostgreSQL 15+
-- [Tailwind CSS CLI](https://github.com/tailwindlabs/tailwindcss/releases) to prepare the generated stylesheet
+- Go matching `go.mod` for local development and CI
+- `curl` and `sha256sum` (or macOS `shasum`) for the pinned Tailwind CLI
 - Goose for database migrations
 - Optional Google API keys for the [Gemini API](https://ai.google.dev/gemini-api/docs/api-key) and [YouTube Data API v3](https://developers.google.com/youtube/v3/getting-started)
 
@@ -115,7 +116,19 @@ make run
 make test
 ```
 
+`make templ` runs the exact Templ version from `go.mod`. Commit its generated `*_templ.go` files with source changes; `make check-templ` rejects tracked changes and untracked generated files after regeneration. CI runs both before testing. `make lint` checks formatting of handwritten Go and runs the pinned golangci-lint version from the Makefile with errcheck, staticcheck, govet, ineffassign, and gosec.
+
+`make tail-prod` and `make tail-watch` download the standalone Tailwind v4 release pinned in [`tools/tailwind.env`](tools/tailwind.env). The same wrapper is used in CI and local builds on macOS or glibc Linux (arm64/x86_64). Downloads go to a temporary file, are SHA-256 verified before installation or execution, and are cached under ignored `bin/tools/`; cached binaries are verified on every run. A download or checksum failure stops the build and cleans up the temporary file. No system-wide install is needed.
+
+Renovate discovers both tool versions. A Tailwind update must change the version **and every platform checksum** in `tools/tailwind.env` together, after checking the release’s `sha256sums.txt` against its published asset digests. Version-only updates intentionally fail verification until the matching hashes are reviewed. Keep Tailwind on v4 unless a separate compatibility change is approved, then run `make tail-prod` and smoke-test the UI.
+
 Use `make migrate`, `make migrate-status`, and `make migrate-down` for database maintenance. Set `SECURE_COOKIES=true` when serving the application over production HTTPS.
+
+## Browser security headers
+
+Every public-router response includes `nosniff`, `Referrer-Policy: same-origin`, and clickjacking protection (`X-Frame-Options: DENY` and CSP `frame-ancestors 'none'`). The starter CSP defaults to same-origin resources, blocks objects, and limits forms and base URLs to the application origin. Google Fonts CSS/font hosts are allowed explicitly; htmx and the production Umami proxy remain same-origin. Local HTTP development does not force an HTTPS upgrade.
+
+The existing inline templ scripts (toasts, filters, edit/report controls and bookmarklet setup) require `script-src 'unsafe-inline'`; htmx `hx-on` form-reset handlers require `'unsafe-eval'`. Existing inline styles and htmx indicators require `style-src 'unsafe-inline'`. These are compatibility allowances confined to their respective directives, not permission for arbitrary external script hosts. Moving handlers to external scripts and replacing eval-dependent htmx behavior is a separate prerequisite to tightening them. The bookmarklet opens the normal authenticated capture URL; no auth bypass is added.
 
 ## License
 

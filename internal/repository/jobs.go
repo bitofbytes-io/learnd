@@ -126,7 +126,7 @@ func (r *EntryRepository) CompleteSummary(ctx context.Context, claim *JobClaim, 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(context.Background())
+	defer func() { _ = tx.Rollback(context.Background()) }()
 	command, err := tx.Exec(ctx, `UPDATE entries SET summary_text = $3, summary_provider = $4,
  summary_model = $5, summary_version = $6, summary_generated_at = $7,
  summary_status = 'ok', summary_error = NULL, summary_force_refresh = FALSE,
@@ -160,7 +160,7 @@ func (r *EntryRepository) ResetSummary(ctx context.Context, id uuid.UUID) error 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(context.Background())
+	defer func() { _ = tx.Rollback(context.Background()) }()
 	var canonicalURL string
 	err = tx.QueryRow(ctx, `UPDATE entries SET summary_status = 'pending', summary_error = NULL,
  summary_force_refresh = TRUE, summary_claim_token = NULL, summary_lease_expires_at = NULL

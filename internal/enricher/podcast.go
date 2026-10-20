@@ -79,7 +79,7 @@ func (e *PodcastEnricher) Enrich(ctx context.Context, rawURL string) (*Result, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
@@ -142,8 +142,7 @@ func extractPodcastMetadata(n *html.Node, result *Result) {
 			// Duration in seconds
 			if content != "" {
 				var seconds int
-				fmt.Sscanf(content, "%d", &seconds)
-				if seconds > 0 {
+				if _, err := fmt.Sscanf(content, "%d", &seconds); err == nil && seconds > 0 {
 					result.RuntimeSeconds = &seconds
 				}
 			}

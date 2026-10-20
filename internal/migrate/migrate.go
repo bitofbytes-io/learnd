@@ -34,7 +34,7 @@ func apply(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, logger *slog.Log
 	}
 
 	db := stdlib.OpenDBFromPool(pool)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, fsys,
 		goose.WithSessionLocker(locker),

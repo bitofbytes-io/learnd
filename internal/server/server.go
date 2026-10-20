@@ -35,8 +35,8 @@ func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 
 	// Middleware
+	r.Use(middleware.SecurityHeaders)
 	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
 	r.Use(middleware.Logger)
 	// Before Recoverer, so a recovered panic is still counted as a 500.
 	r.Use(metrics.Middleware)

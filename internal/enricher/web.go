@@ -50,7 +50,7 @@ func (e *WebEnricher) Enrich(ctx context.Context, rawURL string) (*Result, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)

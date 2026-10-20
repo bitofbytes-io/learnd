@@ -97,7 +97,7 @@ func Load() (*Config, error) {
 func getEnv(key, defaultVal string) (string, error) {
 	// Check for _FILE variant first (Docker Swarm secrets pattern)
 	if filePath := os.Getenv(key + "_FILE"); filePath != "" {
-		data, err := os.ReadFile(filePath)
+		data, err := os.ReadFile(filePath) // #nosec G304 G703 -- path is trusted operator configuration, never request input.
 		if err != nil {
 			return "", fmt.Errorf("failed to read %s_FILE (%s): %w", key, filePath, err)
 		}
@@ -139,7 +139,7 @@ func getEnvOrFile(key, defaultPath string) (string, error) {
 // Returns empty string (no error) if the file doesn't exist, allowing validation to catch missing required values.
 // Returns an error if the file exists but cannot be read, or if it's empty.
 func readSecret(path, name string) (string, error) {
-	contents, err := os.ReadFile(path)
+	contents, err := os.ReadFile(path) // #nosec G304 G703 -- secret paths come only from operator configuration or built-in defaults.
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", nil

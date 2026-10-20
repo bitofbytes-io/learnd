@@ -218,7 +218,7 @@ func (w *Worker) summarize(parent context.Context, claim *repository.JobClaim) {
 func (w *Worker) finishError(parent context.Context, kind repository.JobKind, claim *repository.JobClaim, cause error) {
 	status := model.StatusFailed
 	message := jobErrorMessage(cause)
-	var errorMessage *string = &message
+	errorMessage := &message
 	if parent.Err() != nil {
 		status = model.StatusPending
 		errorMessage = nil

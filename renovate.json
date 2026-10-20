@@ -19,6 +19,20 @@
       "description": "Pin Dockerfile base images by digest.",
       "matchManagers": ["dockerfile"],
       "pinDigests": true
+    },
+    {
+      "description": "Tailwind release updates require all platform hashes in tools/tailwind.env to be reviewed together.",
+      "matchPackageNames": ["tailwindlabs/tailwindcss"],
+      "allowedVersions": "<5",
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^tools/tailwind.env$/", "/^Makefile$/"],
+      "matchStrings": ["# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n(?:TAILWIND_VERSION=|GOLANGCI_LINT_VERSION := )(?<currentValue>\\S+)"],
+      "versioningTemplate": "semver"
     }
   ]
 }

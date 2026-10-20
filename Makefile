@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help configure-image ensure-image-tag run dev build test docker-buildx tail-watch tail-prod migrate migrate-down migrate-status templ templ-watch
+.PHONY: help configure-image ensure-image-tag run dev build test docker-buildx tail-watch tail-prod migrate migrate-down migrate-status templ templ-watch check-templ lint
 
 # Include local.mk for local environment variables (API keys, DATABASE_URL, etc.)
 -include local.mk
@@ -15,14 +15,24 @@ configure-image:
 ensure-image-tag: configure-image
 	@test -n "$(strip $(SHORT_SHA))" || (echo "Unable to determine git short SHA. Commit your work before building images." >&2; exit 1)
 
+# renovate: datasource=github-releases depName=golangci/golangci-lint
+GOLANGCI_LINT_VERSION := v2.15.0
+
 # Templ code generation
 templ: ## Generate Go code from templ files
-	templ generate
+	GOTOOLCHAIN=$$(go env GOVERSION) go run github.com/a-h/templ/cmd/templ@$$(go list -m -f '{{.Version}}' github.com/a-h/templ) generate
 
 templ-watch: ## Watch templ files and regenerate on change
-	templ generate --watch
+	GOTOOLCHAIN=$$(go env GOVERSION) go run github.com/a-h/templ/cmd/templ@$$(go list -m -f '{{.Version}}' github.com/a-h/templ) generate --watch
 
-# Local development (assumes tailwindcss binary is installed)
+check-templ: ## Fail on tracked or untracked generated template changes
+	@sh scripts/check-templ.sh
+
+lint: ## Check Go formatting and pinned static analysis
+	@sh scripts/check-gofmt.sh
+	GOTOOLCHAIN=$$(go env GOVERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
+
+# Local development
 run: templ tail-prod ## Generate templ, build Tailwind, and run the app
 	go run ./cmd/learnd
 
@@ -33,11 +43,11 @@ build: templ tail-prod ## Generate templ, build Tailwind, and build production b
 	go build -o bin/learnd ./cmd/learnd
 
 # Tailwind (using standalone CLI binary)
-tail-watch: ## Build Tailwind in watch mode (requires tailwindcss CLI)
-	tailwindcss -i ./tailwind/styles.css -o ./static/styles.css --watch
+tail-watch: ## Build Tailwind in watch mode with the pinned CLI
+	sh scripts/tailwind.sh -i ./tailwind/styles.css -o ./static/styles.css --watch
 
 tail-prod: ## Build minified Tailwind output to static/styles.css
-	tailwindcss -i ./tailwind/styles.css -o ./static/styles.css --minify
+	sh scripts/tailwind.sh -i ./tailwind/styles.css -o ./static/styles.css --minify
 
 # Database migrations
 migrate: ## Apply database migrations

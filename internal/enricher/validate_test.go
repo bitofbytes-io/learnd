@@ -30,7 +30,7 @@ func TestSafeDialContextRejectsPrivateRemoteAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	done := make(chan struct{})
 	go func() {

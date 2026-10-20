@@ -39,7 +39,10 @@ func NewReportHandler(entryRepo *repository.EntryRepository, loc *time.Location)
 // ReportsPage renders the reports page
 func (h *ReportHandler) ReportsPage(w http.ResponseWriter, r *http.Request) {
 	startDate, endDate := defaultReportDateStrings(time.Now().In(h.loc))
-	pages.ReportsPage(startDate, endDate, bookmarkletURL(middleware.RequestOrigin(r))).Render(r.Context(), w)
+	if err := pages.ReportsPage(startDate, endDate, bookmarkletURL(middleware.RequestOrigin(r))).Render(r.Context(), w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+		return
+	}
 }
 
 // bookmarkletURL returns a javascript: URL that opens the capture page at
@@ -80,11 +83,11 @@ func parseReportRange(query url.Values, today time.Time) (reportRange, error) {
 	// then find where that day starts in the report's zone.
 	first, err := time.Parse(reportDateLayout, rng.StartDate)
 	if err != nil {
-		return reportRange{}, errors.New("Invalid start date")
+		return reportRange{}, errors.New("invalid start date")
 	}
 	last, err := time.Parse(reportDateLayout, rng.EndDate)
 	if err != nil {
-		return reportRange{}, errors.New("Invalid end date")
+		return reportRange{}, errors.New("invalid end date")
 	}
 	rng.First, rng.Last = first, last
 	rng.Start = startOfDay(first, today.Location())
@@ -235,7 +238,10 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("report generated", "start", data.Start, "end", data.End, "total_entries", data.TotalEntries)
-	partials.ReportResults(data).Render(ctx, w)
+	if err := partials.ReportResults(data).Render(ctx, w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+		return
+	}
 }
 
 // buildTagReport returns the tag rows plus their total entries and minutes.
@@ -332,9 +338,12 @@ func (h *ReportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 	defer writer.Flush()
 
 	// Write CSV header
-	writer.Write([]string{
+	if err := writer.Write([]string{
 		"Date", "URL", "Title", "Type", "Tags", "Time (min)", "Quantity", "Notes", "Summary",
-	})
+	}); err != nil {
+		slog.Warn("csv export stopped", "handler", "ExportCSV", "error", err)
+		return
+	}
 
 	for {
 		// Process current page
@@ -369,7 +378,7 @@ func (h *ReportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 				summary = *entry.SummaryText
 			}
 
-			writer.Write([]string{
+			if err := writer.Write([]string{
 				sanitizeCSVField(entry.CreatedAt.In(h.loc).Format(reportDateLayout)),
 				sanitizeCSVField(entry.SourceURL),
 				sanitizeCSVField(title),
@@ -379,7 +388,10 @@ func (h *ReportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 				sanitizeCSVField(quantity),
 				sanitizeCSVField(notes),
 				sanitizeCSVField(summary),
-			})
+			}); err != nil {
+				slog.Warn("csv export stopped", "handler", "ExportCSV", "error", err)
+				return
+			}
 		}
 		writer.Flush()
 		if err := writer.Error(); err != nil {

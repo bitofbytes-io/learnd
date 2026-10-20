@@ -67,7 +67,7 @@ func TestSanitizeUTF8(t *testing.T) {
 }
 
 func TestJobErrorMessageRedactsRequestURL(t *testing.T) {
-	cause := fmt.Errorf("failed to fetch: %w", &url.Error{
+	cause := fmt.Errorf("failed to fetch: %w", &url.Error{ // #nosec G101 -- synthetic credentials exercise log redaction; no live secrets.
 		Op:  "Get",
 		URL: "https://user:pass@www.googleapis.com/youtube/v3/videos?id=abc&key=secret-key",
 		Err: errors.New("connection reset"),
