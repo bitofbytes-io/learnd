@@ -56,18 +56,24 @@ func run() error {
 
 	slog.Info("starting learnd", "port", cfg.Port, "version", version, "revision", revision)
 
-	// Connect to database
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	// Install signal handling before connecting or running migrations.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Bound initial connection establishment separately from migrations.
+	connectCtx, cancelConnect := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelConnect()
+	pool, err := pgxpool.New(connectCtx, cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	defer pool.Close()
 
 	// Verify database connection
-	if err := pool.Ping(ctx); err != nil {
+	if err := pool.Ping(connectCtx); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
+	cancelConnect()
 	slog.Info("connected to database")
 
 	// Apply pending migrations before serving. A failure exits the process, so
@@ -130,10 +136,6 @@ func run() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Graceful shutdown
-	shutdownChan := make(chan os.Signal, 1)
-	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
-
 	// Bind the public port before the metrics listener, so a METRICS_ADDR that
 	// collides with PORT costs metrics rather than the app.
 	publicListener, err := net.Listen("tcp", httpServer.Addr)
@@ -166,7 +168,7 @@ func run() error {
 	case err := <-serveErr:
 		bgWorker.Stop()
 		return fmt.Errorf("server error: %w", err)
-	case <-shutdownChan:
+	case <-ctx.Done():
 	}
 	slog.Info("shutting down...")
 
