@@ -56,6 +56,9 @@ func Load() (*Config, error) {
 	if cfg.MetricsAddr, err = getEnv("METRICS_ADDR", ":9464"); err != nil {
 		return nil, err
 	}
+	if cfg.MetricsAddr, err = validateMetricsAddr(cfg.MetricsAddr); err != nil {
+		return nil, err
+	}
 
 	// Secure cookies enabled by default (production), set SECURE_COOKIES=false for local dev
 	secureCookiesStr, err := getEnv("SECURE_COOKIES", "true")
