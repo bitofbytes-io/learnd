@@ -1,6 +1,6 @@
 module github.com/drywaters/learnd
 
-go 1.26.6
+go 1.26.10
 
 require (
 	github.com/a-h/templ v0.3.1020
@@ -11,7 +11,7 @@ require (
 	github.com/pressly/goose/v3 v3.27.1
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	google.golang.org/api v0.278.0
 )
 

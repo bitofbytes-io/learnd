@@ -247,3 +247,26 @@ func TestApplyWaitsForAdvisoryLock(t *testing.T) {
 		t.Fatalf("versions = %v, want all embedded versions", got)
 	}
 }
+
+func TestRetryCountFollowsTimeoutBudget(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		budget time.Duration
+		want   uint64
+	}{
+		{"disabled", 0, 1},
+		{"expired", -time.Second, 1},
+		{"subsecond test budget", 150 * time.Millisecond, 1},
+		{"one interval", time.Second, 1},
+		{"fractional interval", 1100 * time.Millisecond, 2},
+		{"startup lock", startupTimeouts.lock, 30},
+		{"startup cleanup", startupTimeouts.unlock, 5},
+		{"larger future budget", 45 * time.Second, 45},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := retryCount(tc.budget); got != tc.want {
+				t.Fatalf("retryCount(%v) = %d, want %d", tc.budget, got, tc.want)
+			}
+		})
+	}
+}

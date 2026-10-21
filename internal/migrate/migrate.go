@@ -28,6 +28,8 @@ func apply(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, logger *slog.Log
 	return applyWithTimeouts(ctx, pool, fsys, logger, startupTimeouts)
 }
 
+// applyWithTimeouts shares one startup deadline across all Goose work while
+// allowing regression tests to exercise expiry with short, isolated budgets.
 func applyWithTimeouts(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, logger *slog.Logger, timeouts migrationTimeouts) (retErr error) {
 	// One deadline includes connection acquisition, lock waiting, SQL, and the
 	// final version check. Cleanup has a separate, bounded allowance.
@@ -40,8 +42,8 @@ func applyWithTimeouts(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, logg
 		}
 	}()
 	locker, err := lock.NewPostgresSessionLocker(
-		lock.WithLockTimeout(1, 30),
-		lock.WithUnlockTimeout(1, 5),
+		lock.WithLockTimeout(1, retryCount(timeouts.lock)),
+		lock.WithUnlockTimeout(1, retryCount(timeouts.unlock)),
 	)
 	if err != nil {
 		return fmt.Errorf("migrate: create session locker: %w", err)
