@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,7 +26,8 @@ type Server struct {
 // when addr is Disabled or the address cannot be bound; a bind failure is
 // logged rather than returned so metrics never stop learnd from serving.
 func Start(addr string, reg *prometheus.Registry) *Server {
-	if addr == Disabled {
+	addr = strings.TrimSpace(addr)
+	if strings.EqualFold(addr, Disabled) {
 		slog.Info("metrics listener disabled")
 		return nil
 	}
