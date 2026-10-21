@@ -78,7 +78,9 @@ func applyWithTimeouts(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, logg
 		return fmt.Errorf("migrate: goose up: %w", err)
 	}
 
-	version, err := provider.GetDBVersion(ctx)
+	// GetVersions reads without acquiring the session lock again. Up already
+	// serialized pending work; logging must not restart the lock-wait budget.
+	version, _, err := provider.GetVersions(ctx)
 	if err != nil {
 		return fmt.Errorf("migrate: read goose version: %w", err)
 	}
