@@ -1,5 +1,9 @@
 # Worker lease rollout
 
+For runtime-role DDL privileges, the 60-second startup migration deadline, the
+90-second healthcheck start period, and maintenance windows for table-rewriting
+DDL (including migration 009), see [Database and migrations](../README.md#database-and-migrations).
+
 Migration `008_add_worker_leases.sql` is additive, but old workers do not respect
 claims. Do not run old and new workers together during this rollout.
 
