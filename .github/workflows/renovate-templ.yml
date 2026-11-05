@@ -1,0 +1,126 @@
+name: Regenerate templ on Renovate branches
+
+# Mend-hosted Renovate does not run postUpgradeTasks, so it cannot generate
+# templ output before go mod tidy. Its go get also records only go.mod
+# checksums for modules imported by the templ tool, which makes
+# `make check-templ` fail.
+#
+# Templ and go mod tidy execute the bumped modules, so they run only in the
+# read-only generate job. The commit and dispatch jobs never run that code;
+# they apply an artifact and call the GitHub API.
+
+on:
+  push:
+    branches:
+      - renovate/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate-templ-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Regenerate templ and tidy modules
+        id: changes
+        env:
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
+        run: |
+          set -euo pipefail
+          unset GITHUB_TOKEN GH_TOKEN || true
+          # *_templ.go is tracked. Tidy first so the templ tool's module zips
+          # are in go.sum. Generate next, then tidy again so imports added by
+          # the new output are recorded.
+          go mod tidy
+          make templ
+          go mod tidy
+          git add -A -- go.mod go.sum
+          git add -A -- ':(glob)**/*_templ.go'
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No go.mod, go.sum, or templ output changes."
+            exit 0
+          fi
+          mkdir -p "${RUNNER_TEMP}/templ-update"
+          git diff --cached --binary > "${RUNNER_TEMP}/templ-update/changes.patch"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload generated diff
+        if: steps.changes.outputs.changed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: templ-update
+          path: ${{ runner.temp }}/templ-update/changes.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  commit:
+    needs: generate
+    if: needs.generate.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      pushed: ${{ steps.push.outputs.pushed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: true
+
+      - name: Download generated diff
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: templ-update
+          path: ${{ runner.temp }}/templ-update
+
+      - name: Apply diff and push
+        id: push
+        run: |
+          set -euo pipefail
+          patch="${RUNNER_TEMP}/templ-update/changes.patch"
+          # Copy the checker before apply so a patch cannot replace the script
+          # that is about to run.
+          checker="${RUNNER_TEMP}/check-staged-templ-update.sh"
+          cp test-support/check-staged-templ-update.sh "${checker}"
+          git apply --index --binary "$patch"
+          bash "${checker}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: regenerate templ output after dependency update"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+  dispatch:
+    needs: commit
+    if: needs.commit.outputs.pushed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Run CI on the updated commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run ci.yml --ref "${GITHUB_REF_NAME}"

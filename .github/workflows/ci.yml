@@ -5,6 +5,11 @@ on:
     branches: [ main ]
   push:
     branches: [ main ]
+  # Renovate follow-up commits are pushed with the workflow token, which does
+  # not start pull_request runs. renovate-templ.yml dispatches this workflow
+  # so those commits are tested. Dispatch works once this trigger is on main.
+  # build-and-trigger still requires a push to main, so this dispatch cannot deploy.
+  workflow_dispatch:
 
 jobs:
   test:
@@ -31,6 +36,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Check templ update index allowlist
+        run: bash test-support/check-staged-templ-update_test.sh
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
@@ -53,6 +60,8 @@ jobs:
           go build ./cmd/learnd
 
   build-and-trigger:
+    # workflow_dispatch retests a Renovate follow-up. It is not a push, so it
+    # cannot publish an image or trigger the crystal1 deploy hook.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     permissions:
