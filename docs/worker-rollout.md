@@ -101,7 +101,7 @@ Retain the CSV until every surviving captured entry has completed a fresh summar
 ## PostgreSQL regression tests
 
 Set `LEARND_TEST_DATABASE_URL` to a disposable PostgreSQL database and run
-`make test` and `go test -race ./internal/repository ./internal/worker`. Tests use
+`make test`, which runs every package under the race detector. Tests use
 separate temporary schemas, apply the real migrations, and clean up afterward.
 Without this variable, database tests skip; CI always provides PostgreSQL.
 Provider tests use local fakes and make no paid API calls.

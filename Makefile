@@ -60,8 +60,8 @@ migrate-status: ## Show migration status
 	goose -dir migrations postgres "$$DATABASE_URL" status
 
 # Testing
-test: ## Run Go tests
-	go test -v ./...
+test: ## Run Go tests with the race detector
+	go test -race -v ./...
 
 # Docker (production)
 # METADATA_FILE, when set, receives buildx's build metadata; CI reads the pushed digest from it.

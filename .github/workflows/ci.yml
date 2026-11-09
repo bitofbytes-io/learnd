@@ -50,10 +50,8 @@ jobs:
         run: make lint
       - name: Build stylesheet with the pinned Tailwind release
         run: make tail-prod
-      - name: Test including PostgreSQL regressions
+      - name: Test every package with the race detector, including PostgreSQL regressions
         run: make test
-      - name: Check worker concurrency
-        run: go test -race ./internal/repository ./internal/worker
       - name: Vet and build
         run: |
           go vet ./...
