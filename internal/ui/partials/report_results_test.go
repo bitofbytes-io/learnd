@@ -3,6 +3,8 @@ package partials
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -77,5 +79,38 @@ func TestWeeklyChartWithoutTrackedTime(t *testing.T) {
 	trimmed := renderWeeklyChart(t, ReportData{ByWeek: []WeekReport{{Label: "Oct 5"}, {Label: "Oct 12"}}, ByWeekTrimmed: true})
 	if !strings.Contains(trimmed, "No time tracked in the last 2 weeks.") || strings.Contains(trimmed, "in this range") {
 		t.Fatalf("trimmed chart without tracked time: %s", trimmed)
+	}
+}
+
+func tagBarWidths(t *testing.T, data ReportData) []string {
+	t.Helper()
+	var b strings.Builder
+	if err := ReportResults(data).Render(context.Background(), &b); err != nil {
+		t.Fatal(err)
+	}
+	var widths []string
+	for _, m := range regexp.MustCompile(`class="h-full rounded-full" style="width: ([^;]+);`).FindAllStringSubmatch(b.String(), -1) {
+		widths = append(widths, m[1])
+	}
+	return widths
+}
+
+func TestTagBarsScaleToTheLongestTag(t *testing.T) {
+	got := tagBarWidths(t, ReportData{ByTag: []TagReport{
+		{Tag: "go", Count: 2, Time: 200},
+		{Tag: "", Count: 1, Time: 50},
+		{Tag: "rust", Count: 1, Time: 1},
+		{Tag: "ai", Count: 1},
+	}})
+	want := []string{"100.0%", "25.0%", "1.0%", "0"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("tag bar widths = %v, want %v", got, want)
+	}
+}
+
+func TestTagBarsWithoutTrackedTimeStayEmpty(t *testing.T) {
+	got := tagBarWidths(t, ReportData{ByTag: []TagReport{{Tag: "go", Count: 2}, {Tag: "", Count: 1}}})
+	if want := []string{"0", "0"}; !slices.Equal(got, want) {
+		t.Fatalf("tag bar widths = %v, want %v", got, want)
 	}
 }

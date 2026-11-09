@@ -401,10 +401,10 @@ type ReportTotals struct {
 // single tag, so no entry is counted twice.
 func (r *EntryRepository) AggregateByTag(ctx context.Context, start, end time.Time) ([]TagAggregation, error) {
 	query := `
-		SELECT COALESCE(NULLIF(BTRIM(tag), ''), ''), COUNT(*), COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
+		SELECT COALESCE(tag, ''), COUNT(*), COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
 		FROM entries
 		WHERE created_at >= $1 AND created_at < $2
-		GROUP BY COALESCE(NULLIF(BTRIM(tag), ''), '')
+		GROUP BY COALESCE(tag, '')
 		ORDER BY 3 DESC, 2 DESC, 1
 	`
 

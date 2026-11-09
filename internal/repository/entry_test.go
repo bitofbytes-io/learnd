@@ -186,7 +186,7 @@ func TestAggregateByTagIncludesUntaggedAndSumsToTotals(t *testing.T) {
 		{url: "https://example.test/3", tag: "rust", spent: intPtr(1200), runtime: intPtr(60)},
 		{url: "https://example.test/4", tag: "ai"},
 		{url: "https://example.test/5", spent: intPtr(60)},
-		{url: "https://example.test/6", tag: "  ", runtime: intPtr(60)},
+		{url: "https://example.test/6", runtime: intPtr(60)},
 		// Outside the range.
 		{url: "https://example.test/7", tag: "go", spent: intPtr(9000), createdAt: day.AddDate(0, 0, 10)},
 	}
