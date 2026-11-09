@@ -139,17 +139,17 @@ func parseDashboardPage(r *http.Request) int {
 // maxDashboardQueryLength caps the search text, in runes, sent to Postgres.
 const maxDashboardQueryLength = 200
 
-// parseDashboardFilter reads ?q=, ?tag=, and ?type=. An invalid tag or type is
-// ignored rather than rejected, so a stale link still shows the dashboard.
+// parseDashboardFilter reads ?q=, ?tag=, and ?type=. The tag is matched exactly
+// as given, because the links and the tag select send stored values, which may
+// predate tag normalization. An invalid type is ignored rather than rejected, so
+// a stale link still shows the dashboard.
 func parseDashboardFilter(q url.Values) ui.DashboardFilter {
 	query := []rune(strings.TrimSpace(q.Get("q")))
 	if len(query) > maxDashboardQueryLength {
 		query = query[:maxDashboardQueryLength]
 	}
 	filter := ui.DashboardFilter{Query: strings.TrimSpace(string(query))}
-	if tag, err := parseTag(q.Get("tag")); err == nil && tag != nil {
-		filter.Tag = *tag
-	}
+	filter.Tag = q.Get("tag")
 	if sourceType := parseSourceType(q.Get("type")); sourceType != nil {
 		filter.SourceType = string(*sourceType)
 	}

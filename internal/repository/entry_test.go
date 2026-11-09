@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -231,5 +232,44 @@ func TestAggregateByTagIncludesUntaggedAndSumsToTotals(t *testing.T) {
 	}
 	if count != totals.TotalEntries || seconds != totals.TotalTimeSeconds {
 		t.Fatalf("tag rows sum to %d entries / %ds, totals are %d / %ds", count, seconds, totals.TotalEntries, totals.TotalTimeSeconds)
+	}
+}
+
+// A tag stored before normalization (e.g. copied by migration 007) must group
+// under its stored value and be found by filtering on exactly that value.
+func TestAggregateByTagPaddedTagMatchesListFilter(t *testing.T) {
+	pool := testdb.New(t)
+	repo := NewEntryRepository(pool)
+	ctx := context.Background()
+	day := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	for i, tag := range []string{" go ", " go ", "go"} {
+		_, err := pool.Exec(ctx, `
+			INSERT INTO entries (created_at, source_url, normalized_url, tag, time_spent_seconds, source_type)
+			VALUES ($1, $2, $2, $3, 60, 'article')`,
+			day, fmt.Sprintf("https://example.test/%d", i), tag)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := repo.AggregateByTag(ctx, day.Add(-time.Hour), day.AddDate(0, 0, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []TagAggregation{
+		{Tag: " go ", Count: 2, TimeSeconds: 120},
+		{Tag: "go", Count: 1, TimeSeconds: 60},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("AggregateByTag() = %+v, want %+v", got, want)
+	}
+	for _, agg := range got {
+		count, err := repo.CountFiltered(ctx, ListOptions{Tag: &agg.Tag})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != agg.Count {
+			t.Fatalf("CountFiltered(tag %q) = %d, report counts %d", agg.Tag, count, agg.Count)
+		}
 	}
 }

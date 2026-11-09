@@ -3,10 +3,12 @@ package handler
 import (
 	"context"
 	"fmt"
+	"html"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,6 +17,7 @@ import (
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/repository"
 	"github.com/drywaters/learnd/internal/ui"
+	"github.com/drywaters/learnd/internal/ui/partials"
 	"github.com/google/uuid"
 )
 
@@ -314,7 +317,7 @@ func TestCapturePageAppliesSearchAndFilters(t *testing.T) {
 	}
 
 	handler := NewCaptureHandler(mock, false)
-	req := httptest.NewRequest(http.MethodGet, "/?q=+go+%26+rust+&tag=GO&type=youtube&page=2", nil)
+	req := httptest.NewRequest(http.MethodGet, "/?q=+go+%26+rust+&tag=go&type=youtube&page=2", nil)
 	rec := httptest.NewRecorder()
 	handler.CapturePage(rec, req)
 
@@ -366,7 +369,7 @@ func TestCapturePageIgnoresInvalidFilters(t *testing.T) {
 	}
 
 	handler := NewCaptureHandler(mock, false)
-	req := httptest.NewRequest(http.MethodGet, "/?q=++&tag=not+a+tag&type=movie", nil)
+	req := httptest.NewRequest(http.MethodGet, "/?q=++&tag=&type=movie", nil)
 	rec := httptest.NewRecorder()
 	handler.CapturePage(rec, req)
 
@@ -376,6 +379,32 @@ func TestCapturePageIgnoresInvalidFilters(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "Recent Entries") || !strings.Contains(body, "No entries yet") {
 		t.Fatalf("CapturePage() should render the unfiltered dashboard: %q", body)
+	}
+}
+
+// Stored tags may predate normalization, so the dashboard filter must accept
+// whatever a report or entry-row link carries and match it exactly.
+func TestStoredTagLinkRoundTripsThroughDashboardFilter(t *testing.T) {
+	for _, stored := range []string{" go ", "Go", "c++", "two words"} {
+		t.Run(stored, func(t *testing.T) {
+			var report strings.Builder
+			data := partials.ReportData{ByTag: []partials.TagReport{{Tag: stored, Count: 1, Time: 60}}}
+			if err := partials.ReportResults(data).Render(context.Background(), &report); err != nil {
+				t.Fatal(err)
+			}
+			m := regexp.MustCompile(`href="/\?([^"]*)"`).FindStringSubmatch(report.String())
+			if m == nil {
+				t.Fatalf("report has no tag link: %s", report.String())
+			}
+			link, err := url.ParseQuery(html.UnescapeString(m[1]))
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts := dashboardListOptions(parseDashboardFilter(link))
+			if opts.Tag == nil || *opts.Tag != stored {
+				t.Fatalf("dashboard tag filter = %v, want %q", opts.Tag, stored)
+			}
+		})
 	}
 }
 
