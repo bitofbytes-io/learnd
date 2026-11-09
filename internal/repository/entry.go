@@ -396,14 +396,16 @@ type ReportTotals struct {
 }
 
 // AggregateByTag returns entry counts and time aggregated by tag for entries
-// created in [start, end)
+// created in [start, end), longest time first. Untagged entries form one row
+// with an empty Tag, so the rows sum to GetReportTotals. Each entry carries a
+// single tag, so no entry is counted twice.
 func (r *EntryRepository) AggregateByTag(ctx context.Context, start, end time.Time) ([]TagAggregation, error) {
 	query := `
-		SELECT tag, COUNT(*), COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
+		SELECT COALESCE(tag, ''), COUNT(*), COALESCE(SUM(COALESCE(time_spent_seconds, runtime_seconds, 0)), 0)::int
 		FROM entries
-		WHERE created_at >= $1 AND created_at < $2 AND tag IS NOT NULL AND tag != ''
-		GROUP BY tag
-		ORDER BY COUNT(*) DESC
+		WHERE created_at >= $1 AND created_at < $2
+		GROUP BY COALESCE(tag, '')
+		ORDER BY 3 DESC, 2 DESC, 1
 	`
 
 	rows, err := r.pool.Query(ctx, query, start, end)
