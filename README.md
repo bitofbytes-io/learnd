@@ -143,6 +143,8 @@ make run
 make test
 ```
 
+`make test` runs every package under the Go race detector (`go test -race ./...`), which requires cgo and a C compiler (`gcc`). CI uses the same target.
+
 `make templ` runs the exact Templ version from `go.mod`. Commit its generated `*_templ.go` files with source changes; `make check-templ` rejects tracked changes and untracked generated files after regeneration. CI runs both before testing. `make lint` checks formatting of handwritten Go and runs the pinned golangci-lint version from the Makefile with errcheck, staticcheck, govet, ineffassign, and gosec.
 
 `make tail-prod` and `make tail-watch` download the standalone Tailwind v4 release pinned in [`tools/tailwind.env`](tools/tailwind.env). The same wrapper is used in CI and local builds on macOS or glibc Linux (arm64/x86_64). Downloads go to a temporary file, are SHA-256 verified before installation or execution, and are cached under ignored `bin/tools/`; cached binaries are verified on every run. A download or checksum failure stops the build and cleans up the temporary file. No system-wide install is needed.
