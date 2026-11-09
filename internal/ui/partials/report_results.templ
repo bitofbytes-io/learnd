@@ -15,7 +15,8 @@ func formatDuration(minutes int) string {
 	return fmt.Sprintf("%d min", minutes)
 }
 
-// TagReport represents aggregated data for a single tag
+// TagReport represents aggregated data for a single tag. An empty Tag is the
+// bucket of untagged entries.
 type TagReport struct {
 	Tag   string
 	Count int
@@ -47,6 +48,7 @@ type ReportData struct {
 	TotalTagTime     int // in minutes
 	TotalTypeEntries int
 	TotalTypeTime    int // in minutes
+	UniqueTags       int // distinct tags, not counting untagged entries
 	ByTag          []TagReport
 	ByType         []TypeReport
 	ByWeek         []WeekReport
@@ -86,6 +88,23 @@ func weekBarX(i int) string {
 // time visible as at least a sliver.
 func weekBarHeight(minutes, peak int) float64 {
 	return max(float64(minutes*weekChartHeight)/float64(peak), 1)
+}
+
+func maxTagTime(tags []TagReport) int {
+	peak := 0
+	for _, tag := range tags {
+		peak = max(peak, tag.Time)
+	}
+	return peak
+}
+
+// tagBarStyle sizes a tag's bar against the longest tag, keeping any tracked
+// time visible as at least a sliver.
+func tagBarStyle(minutes, peak int) string {
+	if minutes <= 0 || peak <= 0 {
+		return "width: 0; background: var(--color-accent);"
+	}
+	return fmt.Sprintf("width: %.1f%%; background: var(--color-accent);", max(float64(minutes*100)/float64(peak), 1))
 }
 
 func weekBarTitle(week WeekReport) string {
@@ -183,7 +202,7 @@ templ ReportResults(data ReportData) {
 			</div>
 			<div class="card p-4 text-center">
 				<div class="text-2xl font-display font-semibold" style="color: var(--color-ink);">
-					{ fmt.Sprintf("%d", len(data.ByTag)) }
+					{ fmt.Sprintf("%d", data.UniqueTags) }
 				</div>
 				<div class="text-xs mt-1" style="color: var(--color-ink-lighter);">
 					Unique Tags
@@ -224,22 +243,32 @@ templ ReportResults(data ReportData) {
 					</div>
 				</div>
 			</div>
+			{{ peakTagTime := maxTagTime(data.ByTag) }}
 			<div class="divide-y" style="border-color: var(--color-warm-gray);">
 				for _, tag := range data.ByTag {
-					<div class="p-4 flex items-center justify-between">
-						<div class="flex items-center gap-3">
-							<span class="tag">{ tag.Tag }</span>
-						</div>
-						<div class="flex items-center gap-6 text-sm">
-							if tag.Time > 0 {
-								<div class="text-right w-28">
-									<span class="font-medium" style="color: var(--color-ink);">{ formatDuration(tag.Time) }</span>
-								</div>
-							}
-							<div class="text-right w-24">
-								<span class="font-medium" style="color: var(--color-ink);">{ fmt.Sprintf("%d", tag.Count) }</span>
-								<span style="color: var(--color-ink-lighter);"> entries</span>
+					<div class="p-4">
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-3 min-w-0">
+								if tag.Tag == "" {
+									<span class="text-sm italic" style="color: var(--color-ink-lighter);">Untagged</span>
+								} else {
+									<a href={ templ.SafeURL(tagFilterURL(tag.Tag)) } class="tag truncate" title={ "Show entries tagged " + tag.Tag }>{ tag.Tag }</a>
+								}
 							</div>
+							<div class="flex items-center gap-6 text-sm">
+								if tag.Time > 0 {
+									<div class="text-right w-28">
+										<span class="font-medium" style="color: var(--color-ink);">{ formatDuration(tag.Time) }</span>
+									</div>
+								}
+								<div class="text-right w-24">
+									<span class="font-medium" style="color: var(--color-ink);">{ fmt.Sprintf("%d", tag.Count) }</span>
+									<span style="color: var(--color-ink-lighter);"> entries</span>
+								</div>
+							</div>
+						</div>
+						<div class="mt-2 h-1.5 rounded-full" aria-hidden="true" style="background: var(--color-warm-gray);">
+							<div class="h-full rounded-full" style={ tagBarStyle(tag.Time, peakTagTime) }></div>
 						</div>
 					</div>
 				}

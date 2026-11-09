@@ -167,3 +167,69 @@ func TestListTagsReturnsDistinctSortedTags(t *testing.T) {
 		t.Fatalf("ListTags() = %v, want %v", tags, want)
 	}
 }
+
+func intPtr(n int) *int { return &n }
+
+func TestAggregateByTagIncludesUntaggedAndSumsToTotals(t *testing.T) {
+	pool := testdb.New(t)
+	repo := NewEntryRepository(pool)
+	ctx := context.Background()
+	day := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	seeds := []struct {
+		url, tag       string
+		spent, runtime *int
+		createdAt      time.Time
+	}{
+		{url: "https://example.test/1", tag: "go", spent: intPtr(600)},
+		{url: "https://example.test/2", tag: "go", runtime: intPtr(300)},
+		// time_spent_seconds wins over runtime_seconds.
+		{url: "https://example.test/3", tag: "rust", spent: intPtr(1200), runtime: intPtr(60)},
+		{url: "https://example.test/4", tag: "ai"},
+		{url: "https://example.test/5", spent: intPtr(60)},
+		{url: "https://example.test/6", tag: "  ", runtime: intPtr(60)},
+		// Outside the range.
+		{url: "https://example.test/7", tag: "go", spent: intPtr(9000), createdAt: day.AddDate(0, 0, 10)},
+	}
+	for _, s := range seeds {
+		createdAt := s.createdAt
+		if createdAt.IsZero() {
+			createdAt = day
+		}
+		_, err := pool.Exec(ctx, `
+			INSERT INTO entries (created_at, source_url, normalized_url, tag, time_spent_seconds, runtime_seconds, source_type)
+			VALUES ($1, $2, $2, NULLIF($3, ''), $4, $5, 'article')`,
+			createdAt, s.url, s.tag, s.spent, s.runtime)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	start, end := day.Add(-time.Hour), day.AddDate(0, 0, 1)
+
+	got, err := repo.AggregateByTag(ctx, start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Longest time first; ties fall back to count, then name.
+	want := []TagAggregation{
+		{Tag: "rust", Count: 1, TimeSeconds: 1200},
+		{Tag: "go", Count: 2, TimeSeconds: 900},
+		{Tag: "", Count: 2, TimeSeconds: 120},
+		{Tag: "ai", Count: 1, TimeSeconds: 0},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("AggregateByTag() = %+v, want %+v", got, want)
+	}
+
+	totals, err := repo.GetReportTotals(ctx, start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count, seconds int
+	for _, agg := range got {
+		count += agg.Count
+		seconds += agg.TimeSeconds
+	}
+	if count != totals.TotalEntries || seconds != totals.TotalTimeSeconds {
+		t.Fatalf("tag rows sum to %d entries / %ds, totals are %d / %ds", count, seconds, totals.TotalEntries, totals.TotalTimeSeconds)
+	}
+}

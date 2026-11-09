@@ -225,6 +225,7 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 		End:              rng.EndDate,
 		TotalEntries:     totals.TotalEntries,
 		TotalTime:        minutesFromSeconds(totals.TotalTimeSeconds),
+		UniqueTags:       uniqueTags(tagReport),
 		TotalTagEntries:  totalTagEntries,
 		TotalTagTime:     totalTagTime,
 		TotalTypeEntries: totalTypeEntries,
@@ -262,6 +263,17 @@ func buildTagReport(tagAggs []repository.TagAggregation) ([]partials.TagReport, 
 	}
 
 	return tagReport, totalTagEntries, minutesFromSeconds(totalTagSeconds)
+}
+
+// uniqueTags counts the named tags; the untagged row has an empty Tag.
+func uniqueTags(tagReport []partials.TagReport) int {
+	n := 0
+	for _, tag := range tagReport {
+		if tag.Tag != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // buildTypeReport returns the type rows plus their total entries and minutes.

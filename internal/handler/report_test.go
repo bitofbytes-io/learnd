@@ -101,6 +101,16 @@ func TestBuildTagReport(t *testing.T) {
 	}
 }
 
+func TestUniqueTagsSkipsUntagged(t *testing.T) {
+	report, _, _ := buildTagReport([]repository.TagAggregation{
+		{Tag: "go", Count: 2, TimeSeconds: 120},
+		{Tag: "", Count: 3, TimeSeconds: 60},
+	})
+	if got := uniqueTags(report); got != 1 {
+		t.Fatalf("uniqueTags() = %d, want 1", got)
+	}
+}
+
 func TestBuildWeekReportFillsEmptyWeeks(t *testing.T) {
 	rng, err := parseReportRange(url.Values{"start": {"2026-09-17"}, "end": {"2026-10-07"}}, time.Now())
 	if err != nil {

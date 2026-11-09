@@ -116,7 +116,8 @@ func TestGetReportAggregatesEntriesInRange(t *testing.T) {
 	if got := reportStat(t, body, "Content Types"); got != "2" {
 		t.Fatalf("Content Types = %s, want 2", got)
 	}
-	for _, want := range []string{`<span class="tag">go</span>`, `<span class="tag">db</span>`} {
+	// Tags link to the filtered dashboard; untagged entries get their own row.
+	for _, want := range []string{`<a href="/?tag=go" class="tag truncate"`, `<a href="/?tag=db" class="tag truncate"`, `>Untagged</span>`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("GetReport() body missing %q", want)
 		}
