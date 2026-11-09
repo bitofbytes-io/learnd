@@ -68,6 +68,7 @@ const (
 	maxLabeledWeeks = 7
 )
 
+// maxWeekTime returns the longest tracked time of any week, in minutes.
 func maxWeekTime(weeks []WeekReport) int {
 	peak := 0
 	for _, week := range weeks {
@@ -76,10 +77,12 @@ func maxWeekTime(weeks []WeekReport) int {
 	return peak
 }
 
+// weekChartViewBox sizes the chart's SVG user space to one slot per week.
 func weekChartViewBox(weeks []WeekReport) string {
 	return fmt.Sprintf("0 0 %d %d", len(weeks)*weekSlotWidth, weekChartHeight)
 }
 
+// weekBarX returns the x offset that centers week i's bar in its slot.
 func weekBarX(i int) string {
 	return fmt.Sprintf("%d", i*weekSlotWidth+(weekSlotWidth-weekBarWidth)/2)
 }
@@ -90,6 +93,7 @@ func weekBarHeight(minutes, peak int) float64 {
 	return max(float64(minutes*weekChartHeight)/float64(peak), 1)
 }
 
+// maxTagTime returns the longest tracked time of any tag, in minutes.
 func maxTagTime(tags []TagReport) int {
 	peak := 0
 	for _, tag := range tags {

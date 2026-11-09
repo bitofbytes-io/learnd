@@ -82,35 +82,72 @@ func TestWeeklyChartWithoutTrackedTime(t *testing.T) {
 	}
 }
 
-func tagBarWidths(t *testing.T, data ReportData) []string {
+// tagBarStyles renders the report and returns the style of every tag bar's
+// fill, in row order.
+func tagBarStyles(t *testing.T, data ReportData) []string {
 	t.Helper()
 	var b strings.Builder
 	if err := ReportResults(data).Render(context.Background(), &b); err != nil {
 		t.Fatal(err)
 	}
-	var widths []string
-	for _, m := range regexp.MustCompile(`class="h-full rounded-full" style="width: ([^;]+);`).FindAllStringSubmatch(b.String(), -1) {
-		widths = append(widths, m[1])
+	var styles []string
+	for _, m := range regexp.MustCompile(`class="h-full rounded-full" style="([^"]*)"`).FindAllStringSubmatch(b.String(), -1) {
+		styles = append(styles, m[1])
 	}
-	return widths
+	return styles
 }
 
+// barStyle is the style of a tag bar filled to width in the accent color.
+func barStyle(width string) string {
+	return "width: " + width + "; background: var(--color-accent);"
+}
+
+// TestTagBarsScaleToTheLongestTag checks that the longest tag fills its track,
+// shorter tags are proportional, and tiny or empty tags stay visible or empty.
 func TestTagBarsScaleToTheLongestTag(t *testing.T) {
-	got := tagBarWidths(t, ReportData{ByTag: []TagReport{
+	got := tagBarStyles(t, ReportData{ByTag: []TagReport{
 		{Tag: "go", Count: 2, Time: 200},
 		{Tag: "", Count: 1, Time: 50},
 		{Tag: "rust", Count: 1, Time: 1},
 		{Tag: "ai", Count: 1},
 	}})
-	want := []string{"100.0%", "25.0%", "1.0%", "0"}
+	want := []string{barStyle("100.0%"), barStyle("25.0%"), barStyle("1.0%"), barStyle("0")}
 	if !slices.Equal(got, want) {
-		t.Fatalf("tag bar widths = %v, want %v", got, want)
+		t.Fatalf("tag bar styles = %q, want %q", got, want)
 	}
 }
 
+// TestTagBarsWithoutTrackedTimeStayEmpty checks that a report with no tracked
+// time renders empty accent bars instead of dividing by a zero peak.
 func TestTagBarsWithoutTrackedTimeStayEmpty(t *testing.T) {
-	got := tagBarWidths(t, ReportData{ByTag: []TagReport{{Tag: "go", Count: 2}, {Tag: "", Count: 1}}})
-	if want := []string{"0", "0"}; !slices.Equal(got, want) {
-		t.Fatalf("tag bar widths = %v, want %v", got, want)
+	got := tagBarStyles(t, ReportData{ByTag: []TagReport{{Tag: "go", Count: 2}, {Tag: "", Count: 1}}})
+	if want := []string{barStyle("0"), barStyle("0")}; !slices.Equal(got, want) {
+		t.Fatalf("tag bar styles = %q, want %q", got, want)
+	}
+}
+
+// TestTagBarsTieForTheLongestTag checks that tags sharing the peak all render
+// full width.
+func TestTagBarsTieForTheLongestTag(t *testing.T) {
+	got := tagBarStyles(t, ReportData{ByTag: []TagReport{{Tag: "go", Count: 1, Time: 60}, {Tag: "ai", Count: 1, Time: 60}}})
+	if want := []string{barStyle("100.0%"), barStyle("100.0%")}; !slices.Equal(got, want) {
+		t.Fatalf("tag bar styles = %q, want %q", got, want)
+	}
+}
+
+// TestTagBarStyleHandlesDegenerateInput checks the bar calculation directly:
+// a zero peak or non-positive minutes must not divide by zero or go negative.
+func TestTagBarStyleHandlesDegenerateInput(t *testing.T) {
+	for _, tc := range []struct{ minutes, peak int }{{0, 0}, {5, 0}, {0, 5}, {-3, 5}} {
+		if got, want := tagBarStyle(tc.minutes, tc.peak), barStyle("0"); got != want {
+			t.Errorf("tagBarStyle(%d, %d) = %q, want %q", tc.minutes, tc.peak, got, want)
+		}
+	}
+}
+
+// TestReportResultsWithoutTags checks that an empty report renders no tag bars.
+func TestReportResultsWithoutTags(t *testing.T) {
+	if got := tagBarStyles(t, ReportData{}); len(got) != 0 {
+		t.Fatalf("empty report has tag bars: %q", got)
 	}
 }

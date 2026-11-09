@@ -382,8 +382,9 @@ func TestCapturePageIgnoresInvalidFilters(t *testing.T) {
 	}
 }
 
-// Stored tags may predate normalization, so the dashboard filter must accept
-// whatever a report or entry-row link carries and match it exactly.
+// TestStoredTagLinkRoundTripsThroughDashboardFilter checks that a stored tag,
+// which may predate normalization, survives a report link into the dashboard
+// filter and is matched exactly.
 func TestStoredTagLinkRoundTripsThroughDashboardFilter(t *testing.T) {
 	for _, stored := range []string{" go ", "Go", "c++", "two words"} {
 		t.Run(stored, func(t *testing.T) {

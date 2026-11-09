@@ -169,8 +169,11 @@ func TestListTagsReturnsDistinctSortedTags(t *testing.T) {
 	}
 }
 
+// intPtr returns a pointer to n, for optional entry fields.
 func intPtr(n int) *int { return &n }
 
+// TestAggregateByTagIncludesUntaggedAndSumsToTotals checks that untagged
+// entries form one row and that the rows add up to the report totals.
 func TestAggregateByTagIncludesUntaggedAndSumsToTotals(t *testing.T) {
 	pool := testdb.New(t)
 	repo := NewEntryRepository(pool)
@@ -235,8 +238,9 @@ func TestAggregateByTagIncludesUntaggedAndSumsToTotals(t *testing.T) {
 	}
 }
 
-// A tag stored before normalization (e.g. copied by migration 007) must group
-// under its stored value and be found by filtering on exactly that value.
+// TestAggregateByTagPaddedTagMatchesListFilter checks that a tag stored before
+// normalization (e.g. copied by migration 007) groups under its stored value
+// and is found by filtering on exactly that value.
 func TestAggregateByTagPaddedTagMatchesListFilter(t *testing.T) {
 	pool := testdb.New(t)
 	repo := NewEntryRepository(pool)

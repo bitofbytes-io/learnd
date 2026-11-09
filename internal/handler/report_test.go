@@ -101,6 +101,7 @@ func TestBuildTagReport(t *testing.T) {
 	}
 }
 
+// TestUniqueTagsSkipsUntagged checks that the untagged row is not counted as a tag.
 func TestUniqueTagsSkipsUntagged(t *testing.T) {
 	report, _, _ := buildTagReport([]repository.TagAggregation{
 		{Tag: "go", Count: 2, TimeSeconds: 120},
