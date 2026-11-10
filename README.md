@@ -147,6 +147,8 @@ make test
 
 `make templ` runs the exact Templ version from `go.mod`. Commit its generated `*_templ.go` files with source changes; `make check-templ` rejects tracked changes and untracked generated files after regeneration. CI runs both before testing. `make lint` checks formatting of handwritten Go and runs the pinned golangci-lint version from the Makefile with errcheck, staticcheck, govet, ineffassign, and gosec.
 
+`make vuln` runs the govulncheck version pinned in the Makefile (`GOVULNCHECK_VERSION`, tracked by Renovate) against `./...` and fails when a known vulnerability is reachable from the code. It needs network access to fetch the tool and the vulnerability database, but no API keys. CI runs it on every pull request and push to `main`.
+
 `make tail-prod` and `make tail-watch` download the standalone Tailwind v4 release pinned in [`tools/tailwind.env`](tools/tailwind.env). The same wrapper is used in CI and local builds on macOS or glibc Linux (arm64/x86_64). Downloads go to a temporary file, are SHA-256 verified before installation or execution, and are cached under ignored `bin/tools/`; cached binaries are verified on every run. A download or checksum failure stops the build and cleans up the temporary file. No system-wide install is needed.
 
 Renovate discovers both tool versions. A Tailwind update must change the version **and every platform checksum** in `tools/tailwind.env` together, after checking the release’s `sha256sums.txt` against its published asset digests. Version-only updates intentionally fail verification until the matching hashes are reviewed. Keep Tailwind on v4 unless a separate compatibility change is approved, then run `make tail-prod` and smoke-test the UI.

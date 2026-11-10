@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help configure-image ensure-image-tag run dev build test docker-buildx tail-watch tail-prod migrate migrate-down migrate-status templ templ-watch check-templ lint
+.PHONY: help configure-image ensure-image-tag run dev build test docker-buildx tail-watch tail-prod migrate migrate-down migrate-status templ templ-watch check-templ lint vuln
 
 # Include local.mk for local environment variables (API keys, DATABASE_URL, etc.)
 -include local.mk
@@ -18,6 +18,9 @@ ensure-image-tag: configure-image
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION := v2.15.0
 
+# renovate: datasource=go depName=golang.org/x/vuln
+GOVULNCHECK_VERSION := v1.7.0
+
 # Templ code generation
 templ: ## Generate Go code from templ files
 	GOTOOLCHAIN=$$(go env GOVERSION) go run github.com/a-h/templ/cmd/templ@$$(go list -m -f '{{.Version}}' github.com/a-h/templ) generate
@@ -31,6 +34,9 @@ check-templ: ## Fail on tracked or untracked generated template changes
 lint: ## Check Go formatting and pinned static analysis
 	@sh scripts/check-gofmt.sh
 	GOTOOLCHAIN=$$(go env GOVERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
+
+vuln: ## Fail on reachable known vulnerabilities (pinned govulncheck)
+	GOTOOLCHAIN=$$(go env GOVERSION) go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
 # Local development
 run: templ tail-prod ## Generate templ, build Tailwind, and run the app

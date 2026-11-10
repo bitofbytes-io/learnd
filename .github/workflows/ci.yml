@@ -48,6 +48,8 @@ jobs:
           make check-templ
       - name: Format and static analysis
         run: make lint
+      - name: Check for reachable vulnerabilities
+        run: make vuln
       - name: Build stylesheet with the pinned Tailwind release
         run: make tail-prod
       - name: Test every package with the race detector, including PostgreSQL regressions
