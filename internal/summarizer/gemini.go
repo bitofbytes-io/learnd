@@ -3,6 +3,7 @@ package summarizer
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -25,7 +26,35 @@ type GeminiSummarizer struct {
 
 // NewGeminiSummarizerWithModel creates a new Gemini summarizer using the given model.
 func NewGeminiSummarizerWithModel(ctx context.Context, apiKey, modelName string) (*GeminiSummarizer, error) {
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	return newGeminiSummarizer(ctx, apiKey, modelName)
+}
+
+// apiKeyHeaderTransport sends the API key in the X-Goog-Api-Key header. The
+// client's built-in API key option appends it to the URL query string instead,
+// where it ends up in transport error messages and logs.
+type apiKeyHeaderTransport struct {
+	apiKey string
+	base   http.RoundTripper
+}
+
+func (t apiKeyHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("X-Goog-Api-Key", t.apiKey)
+	return t.base.RoundTrip(req)
+}
+
+// newGeminiSummarizer builds the summarizer; extra client options let tests
+// point the client at a local server.
+func newGeminiSummarizer(ctx context.Context, apiKey, modelName string, extra ...option.ClientOption) (*GeminiSummarizer, error) {
+	// The custom HTTP client carries the key for REST calls. WithAPIKey is kept
+	// because the client library still requires it to initialize its gRPC cache
+	// client, which this package does not use.
+	opts := append([]option.ClientOption{
+		option.WithAPIKey(apiKey),
+		option.WithHTTPClient(&http.Client{Transport: apiKeyHeaderTransport{apiKey: apiKey, base: http.DefaultTransport}}),
+	}, extra...)
+
+	client, err := genai.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
