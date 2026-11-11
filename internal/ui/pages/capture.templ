@@ -155,7 +155,7 @@ templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter u
 					</form>
 				</div>
 
-				@failedJobsBanner(filter, failed)
+				@FailedJobsBanner(filter, failed, false)
 				@dashboardFilters(filter)
 				@CaptureEntriesSection(entries, pagination, filter, totalEntries)
 			</main>
@@ -164,38 +164,46 @@ templ CapturePage(entries []ui.EntryView, pagination ui.PaginationView, filter u
 	}
 }
 
-// failedJobsBanner shows how many entries failed enrichment or summary, with a
+// FailedJobsBanner shows how many entries failed enrichment or summary, with a
 // link to list them and a button that requeues them all. Each click requeues a
-// capped batch, so the banner stays until the backlog is drained.
-templ failedJobsBanner(filter ui.DashboardFilter, failed ui.FailedJobsView) {
-	if failed.Entries > 0 {
-		<div
-			id="failed-jobs-banner"
-			class="card p-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-			role="status"
-		>
-			<div class="flex items-center gap-2 text-sm min-w-0" style="color: var(--color-ink);">
-				<span class="status-failed shrink-0">
-					@components.XIcon()
-				</span>
-				<span>{ failedEntriesLabel(failed) }</span>
-				if filter.Failed {
-					<a href="/" class="text-xs hover:underline whitespace-nowrap" style="color: var(--color-accent);">Show all</a>
-				} else {
-					<a href="/?status=failed" class="text-xs hover:underline whitespace-nowrap" style="color: var(--color-accent);">Show failed</a>
-				}
-			</div>
-			<button
-				type="button"
-				hx-post="/api/entries/retry-failed"
-				hx-swap="none"
-				hx-confirm="Retry all failed entries?"
-				class="btn-secondary justify-center"
+// capped batch, so the banner stays until the backlog is drained. The wrapper is
+// always rendered, empty at zero, so row polling can refresh it out of band
+// (swapOOB) as jobs fail or are retried.
+templ FailedJobsBanner(filter ui.DashboardFilter, failed ui.FailedJobsView, swapOOB bool) {
+	<div
+		id="failed-jobs-banner"
+		if swapOOB {
+			hx-swap-oob="outerHTML"
+		}
+	>
+		if failed.Entries > 0 {
+			<div
+				class="card p-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+				role="status"
 			>
-				Retry all failed
-			</button>
-		</div>
-	}
+				<div class="flex items-center gap-2 text-sm min-w-0" style="color: var(--color-ink);">
+					<span class="status-failed shrink-0">
+						@components.XIcon()
+					</span>
+					<span>{ failedEntriesLabel(failed) }</span>
+					if filter.Failed {
+						<a href="/" class="text-xs hover:underline whitespace-nowrap" style="color: var(--color-accent);">Show all</a>
+					} else {
+						<a href="/?status=failed" class="text-xs hover:underline whitespace-nowrap" style="color: var(--color-accent);">Show failed</a>
+					}
+				</div>
+				<button
+					type="button"
+					hx-post="/api/entries/retry-failed"
+					hx-swap="none"
+					hx-confirm="Retry all failed entries?"
+					class="btn-secondary justify-center"
+				>
+					Retry all failed
+				</button>
+			</div>
+		}
+	</div>
 }
 
 // dashboardFilters sits outside the entries region so typing in the search

@@ -117,6 +117,125 @@ func TestStatusRendersPollingRow(t *testing.T) {
 	}
 }
 
+// Row polling and per-row retries refresh the failed-jobs banner out of band so
+// its count follows jobs as they fail or are retried, and it disappears at zero.
+func TestRowResponsesRefreshFailedBanner(t *testing.T) {
+	id := uuid.New()
+	entry := createTestEntry(id)
+	entry.EnrichmentStatus = model.StatusProcessing
+
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		failed      repository.FailedJobs
+		countErr    error
+		currentURL  string
+		wantContain []string
+		wantAbsent  []string
+	}{
+		{
+			name: "status shows the new count", method: http.MethodGet, path: "/entries/" + id.String() + "/status",
+			failed:      repository.FailedJobs{Enrichment: 2, Entries: 2},
+			wantContain: []string{`id="failed-jobs-banner"`, `hx-swap-oob="outerHTML"`, "2 entries failed to process", `hx-post="/api/entries/retry-failed"`, `href="/?status=failed"`},
+		},
+		{
+			name: "status singular", method: http.MethodGet, path: "/entries/" + id.String() + "/status",
+			failed:      repository.FailedJobs{Summary: 1, Entries: 1},
+			wantContain: []string{"1 entry failed to process"},
+		},
+		{
+			name: "status hides the banner at zero", method: http.MethodGet, path: "/entries/" + id.String() + "/status",
+			wantContain: []string{`id="failed-jobs-banner"`, `hx-swap-oob="outerHTML"`},
+			wantAbsent:  []string{"failed to process", "retry-failed"},
+		},
+		{
+			name: "status keeps the failed filter link", method: http.MethodGet, path: "/entries/" + id.String() + "/status",
+			failed: repository.FailedJobs{Enrichment: 1, Entries: 1}, currentURL: "https://learnd.test/?status=failed",
+			wantContain: []string{`href="/"`, "Show all"},
+			wantAbsent:  []string{"Show failed"},
+		},
+		{
+			name: "status ignores a count error", method: http.MethodGet, path: "/entries/" + id.String() + "/status",
+			countErr:    errors.New("database error"),
+			wantContain: []string{`id="failed-jobs-banner"`},
+			wantAbsent:  []string{"failed to process"},
+		},
+		{
+			name: "refresh enrichment shows the remaining count", method: http.MethodPost, path: "/entries/" + id.String() + "/refresh-enrichment",
+			failed:      repository.FailedJobs{Enrichment: 1, Entries: 1},
+			wantContain: []string{"1 entry failed to process", `hx-swap-oob="outerHTML"`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockEntryRepo{
+				getByIDFn:       func(context.Context, uuid.UUID) (*model.Entry, error) { return entry, nil },
+				countFilteredFn: func(context.Context, repository.ListOptions) (int, error) { return 1, nil },
+				countFailedJobsFn: func(context.Context) (repository.FailedJobs, error) {
+					return tt.failed, tt.countErr
+				},
+			}
+			router := chi.NewRouter()
+			handler := NewEntryHandler(mock, false)
+			router.Get("/entries/{id}/status", handler.Status)
+			router.Post("/entries/{id}/refresh-enrichment", handler.RefreshEnrichment)
+
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.currentURL != "" {
+				req.Header.Set("HX-Current-URL", tt.currentURL)
+			}
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d", rec.Code)
+			}
+			body := rec.Body.String()
+			if !strings.Contains(body, `id="entry-`+id.String()+`"`) {
+				t.Fatalf("body missing the entry row: %s", body)
+			}
+			for _, want := range tt.wantContain {
+				if !strings.Contains(body, want) {
+					t.Errorf("body missing %q: %s", want, body)
+				}
+			}
+			for _, absent := range tt.wantAbsent {
+				if strings.Contains(body, absent) {
+					t.Errorf("body contains %q: %s", absent, body)
+				}
+			}
+		})
+	}
+}
+
+// A row that leaves the dashboard filter is removed with an empty swap, but the
+// banner still refreshes: that is how a filtered failed view sees the count drop.
+func TestStatusRefreshesBannerWhenRowLeavesFilter(t *testing.T) {
+	id := uuid.New()
+	mock := &mockEntryRepo{
+		getByIDFn:       func(context.Context, uuid.UUID) (*model.Entry, error) { return createTestEntry(id), nil },
+		countFilteredFn: func(context.Context, repository.ListOptions) (int, error) { return 0, nil },
+		countFailedJobsFn: func(context.Context) (repository.FailedJobs, error) {
+			return repository.FailedJobs{Enrichment: 1, Entries: 1}, nil
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/entries/"+id.String()+"/status", nil)
+	req.Header.Set("HX-Current-URL", "https://learnd.test/?status=failed")
+	rec := httptest.NewRecorder()
+	setupTestHandler(mock).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if strings.Contains(body, `id="entry-`) {
+		t.Fatalf("Status() rendered the row: %s", body)
+	}
+	for _, want := range []string{`hx-swap-oob="outerHTML"`, "1 entry failed to process"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("Status() body missing %q: %s", want, body)
+		}
+	}
+}
+
 func TestDeleteRerendersRemainingDuplicates(t *testing.T) {
 	deleted := createTestEntry(uuid.New())
 	remaining := []model.Entry{*createTestEntry(uuid.New()), *createTestEntry(uuid.New())}

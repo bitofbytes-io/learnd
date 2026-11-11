@@ -437,7 +437,10 @@ func TestCapturePageHidesBannerWithoutFailures(t *testing.T) {
 				t.Fatalf("CapturePage() status = %d", rec.Code)
 			}
 			body := rec.Body.String()
-			if strings.Contains(body, "failed-jobs-banner") || strings.Contains(body, "retry-failed") {
+			if !strings.Contains(body, `id="failed-jobs-banner"`) {
+				t.Fatalf("CapturePage() missing the placeholder row polling refreshes: %s", body)
+			}
+			if strings.Contains(body, "retry-failed") || strings.Contains(body, "failed to process") {
 				t.Fatalf("CapturePage() rendered the failed banner: %s", body)
 			}
 			if !strings.Contains(body, `name="status" value=""`) {

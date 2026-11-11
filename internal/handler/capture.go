@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -84,14 +85,7 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 		filter.Tags = append(slices.Clip(tags), filter.Tag)
 	}
 
-	// The failed-jobs banner is a convenience too; without it the dashboard
-	// still works.
-	var failed ui.FailedJobsView
-	if counts, err := h.entryRepo.CountFailedJobs(ctx); err != nil {
-		slog.Warn("failed to count failed jobs", "handler", "CapturePage", "error", err)
-	} else {
-		failed = ui.FailedJobsView{Entries: counts.Entries, Enrichment: counts.Enrichment, Summary: counts.Summary}
-	}
+	failed := loadFailedJobs(ctx, h.entryRepo)
 
 	prefillURL := sharedPrefillURL(r.URL.Query())
 
@@ -99,6 +93,18 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 		// Log only - response may already be partially written, can't send clean http.Error
 		slog.Error("failed to render page", "handler", "CapturePage", "error", err)
 	}
+}
+
+// loadFailedJobs counts failed jobs for the dashboard banner. The banner is a
+// convenience; without it the dashboard still works, so an error yields an
+// empty view.
+func loadFailedJobs(ctx context.Context, repo EntryRepo) ui.FailedJobsView {
+	counts, err := repo.CountFailedJobs(ctx)
+	if err != nil {
+		slog.Warn("failed to count failed jobs", "error", err)
+		return ui.FailedJobsView{}
+	}
+	return ui.FailedJobsView{Entries: counts.Entries, Enrichment: counts.Enrichment, Summary: counts.Summary}
 }
 
 // sharedPrefillURL picks the URL to prefill from ?url= or, failing that, the
