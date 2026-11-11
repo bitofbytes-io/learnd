@@ -212,19 +212,42 @@ func TestGeminiSummarizeServiceUnavailable(t *testing.T) {
 	})
 
 	t.Run("persistent 503 stops at the context deadline", func(t *testing.T) {
+		const deadline = 500 * time.Millisecond
+
+		var calls atomic.Int32
 		g := newTestSummarizer(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
 			writeJSON(w, http.StatusServiceUnavailable, unavailable)
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), deadline)
 		defer cancel()
 
+		start := time.Now()
 		res, err := g.Summarize(ctx, testInput())
+		elapsed := time.Since(start)
 		if err == nil {
 			t.Fatalf("expected error, got result %+v", res)
 		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("error = %v, want context deadline exceeded", err)
+		}
 		if !strings.Contains(err.Error(), "gemini generation failed") {
 			t.Errorf("error = %q, want gemini generation failed prefix", err)
+		}
+		// The deadline cannot fire early, so returning sooner means the client
+		// gave up on the 503 instead of retrying; the upper bound is generous
+		// to stay stable on slow runners.
+		if elapsed < deadline {
+			t.Errorf("returned after %v, want retries until the %v deadline", elapsed, deadline)
+		}
+		if elapsed > 10*time.Second {
+			t.Errorf("returned after %v, want shortly after the %v deadline", elapsed, deadline)
+		}
+		// Backoff jitter makes the number of attempts nondeterministic, but at
+		// least one request must have reached the server.
+		if calls.Load() < 1 {
+			t.Errorf("server calls = %d, want at least 1", calls.Load())
 		}
 	})
 }
