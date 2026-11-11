@@ -223,9 +223,9 @@ func TestGeminiSummarizeServiceUnavailable(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), deadline)
 		defer cancel()
 
-		start := time.Now()
+		dl, _ := ctx.Deadline()
 		res, err := g.Summarize(ctx, testInput())
-		elapsed := time.Since(start)
+		returnedAt := time.Now()
 		if err == nil {
 			t.Fatalf("expected error, got result %+v", res)
 		}
@@ -235,14 +235,17 @@ func TestGeminiSummarizeServiceUnavailable(t *testing.T) {
 		if !strings.Contains(err.Error(), "gemini generation failed") {
 			t.Errorf("error = %q, want gemini generation failed prefix", err)
 		}
-		// The deadline cannot fire early, so returning sooner means the client
-		// gave up on the 503 instead of retrying; the upper bound is generous
-		// to stay stable on slow runners.
-		if elapsed < deadline {
-			t.Errorf("returned after %v, want retries until the %v deadline", elapsed, deadline)
+		// Measure against the context's own deadline so a delay between creating
+		// the context and calling Summarize cannot skew the bounds. The deadline
+		// cannot fire early, so returning sooner means the client gave up on the
+		// 503 instead of retrying; the upper bound is generous to stay stable on
+		// slow runners.
+		const tolerance = 50 * time.Millisecond
+		if early := dl.Sub(returnedAt); early > tolerance {
+			t.Errorf("returned %v before the %v deadline, want retries until the deadline", early, deadline)
 		}
-		if elapsed > 10*time.Second {
-			t.Errorf("returned after %v, want shortly after the %v deadline", elapsed, deadline)
+		if late := returnedAt.Sub(dl); late > 10*time.Second {
+			t.Errorf("returned %v after the %v deadline, want shortly after it", late, deadline)
 		}
 		// Backoff jitter makes the number of attempts nondeterministic, but at
 		// least one request must have reached the server.
