@@ -87,6 +87,7 @@ func (s *Server) Router() http.Handler {
 		r.Post("/api/entries", entryHandler.Create)
 		r.Put("/api/entries/{id}", entryHandler.Update)
 		r.Delete("/api/entries/{id}", entryHandler.Delete)
+		r.Post("/api/entries/retry-failed", entryHandler.RetryFailed)
 		r.Post("/api/entries/{id}/refresh-enrichment", entryHandler.RefreshEnrichment)
 		r.Post("/api/entries/{id}/refresh-summary", entryHandler.RefreshSummary)
 		r.Get("/entries/{id}/status", entryHandler.Status)

@@ -23,13 +23,22 @@ type DashboardFilter struct {
 	Query      string
 	Tag        string
 	SourceType string
+	// Failed keeps only entries whose enrichment or summary failed.
+	Failed bool
 	// Tags lists the options offered by the tag select.
 	Tags []string
 }
 
 // Active reports whether any filter narrows the entry list.
 func (f DashboardFilter) Active() bool {
-	return f.Query != "" || f.Tag != "" || f.SourceType != ""
+	return f.Query != "" || f.Tag != "" || f.SourceType != "" || f.Failed
+}
+
+// FailedJobsView summarizes entries in a failed state for the dashboard banner.
+type FailedJobsView struct {
+	Entries    int
+	Enrichment int
+	Summary    int
 }
 
 // PaginationView describes a paginated dashboard state.

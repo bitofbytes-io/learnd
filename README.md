@@ -56,6 +56,12 @@ Do not commit this file.
 
 Secrets support corresponding `*_FILE` variables. The application also checks default files under `/run/secrets/learnd_*` for the database, login token, Gemini key, and YouTube key.
 
+## Retrying failed jobs
+
+When a provider call fails, the entry shows a failed icon. The dashboard then shows a banner with the number of failed entries, a **Show failed** link (`/?status=failed`), and a **Retry all failed** button. The button requeues failed enrichments and, when `GEMINI_API_KEY` is set, failed summaries by setting them back to `pending`; the workers pick them up as usual. A requeued summary sets `summary_force_refresh`, like Refresh Summary, and keeps its displayed text until a new one replaces it.
+
+The requeue touches only entries whose status is `failed`, so in-flight jobs and their leases are left alone, and running it again finds nothing new. Each click requeues at most 50 failed enrichments and 50 failed summaries, oldest first; click again for the rest. It needs no extra configuration.
+
 ## Database and migrations
 
 ```bash

@@ -492,6 +492,8 @@ type mockEntryRepo struct {
 	listByNormalizedURLFn             func(ctx context.Context, normalizedURL string) ([]model.Entry, error)
 	resetEnrichmentFn                 func(ctx context.Context, id uuid.UUID) error
 	resetSummaryFn                    func(ctx context.Context, id uuid.UUID) error
+	countFailedJobsFn                 func(ctx context.Context) (repository.FailedJobs, error)
+	retryFailedJobsFn                 func(ctx context.Context, includeSummaries bool) (repository.FailedJobs, error)
 
 	// Track calls for assertions
 	updateCalledWith *model.UpdateEntryInput
@@ -594,6 +596,20 @@ func (m *mockEntryRepo) ResetSummary(ctx context.Context, id uuid.UUID) error {
 		return m.resetSummaryFn(ctx, id)
 	}
 	return nil
+}
+
+func (m *mockEntryRepo) CountFailedJobs(ctx context.Context) (repository.FailedJobs, error) {
+	if m.countFailedJobsFn != nil {
+		return m.countFailedJobsFn(ctx)
+	}
+	return repository.FailedJobs{}, nil
+}
+
+func (m *mockEntryRepo) RetryFailedJobs(ctx context.Context, includeSummaries bool) (repository.FailedJobs, error) {
+	if m.retryFailedJobsFn != nil {
+		return m.retryFailedJobsFn(ctx, includeSummaries)
+	}
+	return repository.FailedJobs{}, nil
 }
 
 // createTestEntry creates a sample entry for testing

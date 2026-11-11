@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"math"
@@ -379,6 +380,73 @@ func TestCapturePageIgnoresInvalidFilters(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "Recent Entries") || !strings.Contains(body, "No entries yet") {
 		t.Fatalf("CapturePage() should render the unfiltered dashboard: %q", body)
+	}
+}
+
+func TestCapturePageFailedFilterAndBanner(t *testing.T) {
+	var listOpts, countOpts repository.ListOptions
+	mock := &mockEntryRepo{
+		listFn: func(_ context.Context, opts repository.ListOptions) ([]model.Entry, error) {
+			listOpts = opts
+			return nil, nil
+		},
+		countFilteredFn: func(_ context.Context, opts repository.ListOptions) (int, error) {
+			countOpts = opts
+			return 3, nil
+		},
+		countFailedJobsFn: func(context.Context) (repository.FailedJobs, error) {
+			return repository.FailedJobs{Enrichment: 2, Summary: 2, Entries: 3}, nil
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	NewCaptureHandler(mock, true).CapturePage(rec, httptest.NewRequest(http.MethodGet, "/?status=failed&tag=go", nil))
+
+	if !listOpts.Failed || !countOpts.Failed {
+		t.Fatalf("List/Count Failed = %t/%t, want true", listOpts.Failed, countOpts.Failed)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"3 entries failed to process",
+		`hx-post="/api/entries/retry-failed"`,
+		`name="status" value="failed"`,
+		`href="/"`, // Show all
+		"3 matching entries",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("CapturePage() body missing %q: %s", want, body)
+		}
+	}
+	if got := dashboardPagePath(2, parseDashboardFilter(url.Values{"status": {"failed"}})); got != "/?page=2&status=failed" {
+		t.Fatalf("dashboardPagePath = %q", got)
+	}
+}
+
+func TestCapturePageHidesBannerWithoutFailures(t *testing.T) {
+	for name, mock := range map[string]*mockEntryRepo{
+		"none failed": {},
+		"count error": {countFailedJobsFn: func(context.Context) (repository.FailedJobs, error) {
+			return repository.FailedJobs{}, errors.New("database error")
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			NewCaptureHandler(mock, false).CapturePage(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("CapturePage() status = %d", rec.Code)
+			}
+			body := rec.Body.String()
+			if !strings.Contains(body, `id="failed-jobs-banner"`) {
+				t.Fatalf("CapturePage() missing the placeholder row polling refreshes: %s", body)
+			}
+			if strings.Contains(body, "retry-failed") || strings.Contains(body, "failed to process") {
+				t.Fatalf("CapturePage() rendered the failed banner: %s", body)
+			}
+			if !strings.Contains(body, `name="status" value=""`) {
+				t.Fatalf("CapturePage() missing empty status field: %s", body)
+			}
+		})
 	}
 }
 

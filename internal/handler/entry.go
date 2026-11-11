@@ -300,6 +300,7 @@ func (h *EntryHandler) RefreshEnrichment(w http.ResponseWriter, r *http.Request)
 	slog.Info("entry enrichment queued", "entry_id", id)
 	h.htmxToast(w, "Enrichment queued", &id, "")
 	h.renderRow(w, r, entry)
+	h.renderFailedBanner(w, r)
 }
 
 // RefreshSummary resets summary status to pending. Its only caller, the edit
@@ -330,6 +331,31 @@ func (h *EntryHandler) RefreshSummary(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// RetryFailed requeues failed enrichments and summaries in bulk, up to
+// repository.MaxBulkRetry of each per request. The dashboard reloads afterward
+// so the banner count and rows reflect the new state.
+func (h *EntryHandler) RetryFailed(w http.ResponseWriter, r *http.Request) {
+	requeued, err := h.entryRepo.RetryFailedJobs(r.Context(), h.summaryEnabled)
+	if err != nil {
+		slog.Error("failed to retry failed jobs", "handler", "RetryFailed", "error", err)
+		http.Error(w, "Failed to retry failed entries", http.StatusInternalServerError)
+		return
+	}
+	slog.Info("failed jobs requeued", "enrichment", requeued.Enrichment, "summary", requeued.Summary)
+
+	if requeued.Enrichment+requeued.Summary == 0 {
+		h.htmxToast(w, "No failed entries to retry", nil, "")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	redirectURL := dashboardReturnTo(r)
+	if redirectURL == "" {
+		redirectURL = "/"
+	}
+	w.Header().Set("HX-Redirect", redirectURL)
+	w.WriteHeader(http.StatusOK)
+}
+
 // Status returns the status partial for an entry (for polling)
 func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseEntryID(w, r)
@@ -347,10 +373,12 @@ func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
 	// filters; an empty body removes its row.
 	if !h.matchesDashboardFilter(r, id) {
 		w.WriteHeader(http.StatusOK)
+		h.renderFailedBanner(w, r)
 		return
 	}
 
 	h.renderRow(w, r, entry)
+	h.renderFailedBanner(w, r)
 }
 
 // matchesDashboardFilter reports whether entry id still matches the filters of
@@ -393,6 +421,19 @@ func (h *EntryHandler) renderRow(w http.ResponseWriter, r *http.Request, entry *
 	if err := partials.EntryRow(entryView).Render(r.Context(), w); err != nil {
 		slog.Warn("response render stopped", "error", err)
 		return
+	}
+}
+
+// renderFailedBanner re-renders the dashboard's failed-jobs banner out of band,
+// so its count follows the rows as they fail or are retried.
+func (h *EntryHandler) renderFailedBanner(w http.ResponseWriter, r *http.Request) {
+	var filter ui.DashboardFilter
+	if parsed, err := url.Parse(dashboardReturnTo(r)); err == nil {
+		filter = parseDashboardFilter(parsed.Query())
+	}
+	failed := loadFailedJobs(r.Context(), h.entryRepo)
+	if err := pages.FailedJobsBanner(filter, failed, true).Render(r.Context(), w); err != nil {
+		slog.Warn("response render stopped", "error", err)
 	}
 }
 

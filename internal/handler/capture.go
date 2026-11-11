@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -84,12 +85,26 @@ func (h *CaptureHandler) CapturePage(w http.ResponseWriter, r *http.Request) {
 		filter.Tags = append(slices.Clip(tags), filter.Tag)
 	}
 
+	failed := loadFailedJobs(ctx, h.entryRepo)
+
 	prefillURL := sharedPrefillURL(r.URL.Query())
 
-	if err := pages.CapturePage(entryViews, pagination, filter, tags, totalEntries, prefillURL).Render(ctx, w); err != nil {
+	if err := pages.CapturePage(entryViews, pagination, filter, failed, tags, totalEntries, prefillURL).Render(ctx, w); err != nil {
 		// Log only - response may already be partially written, can't send clean http.Error
 		slog.Error("failed to render page", "handler", "CapturePage", "error", err)
 	}
+}
+
+// loadFailedJobs counts failed jobs for the dashboard banner. The banner is a
+// convenience; without it the dashboard still works, so an error yields an
+// empty view.
+func loadFailedJobs(ctx context.Context, repo EntryRepo) ui.FailedJobsView {
+	counts, err := repo.CountFailedJobs(ctx)
+	if err != nil {
+		slog.Warn("failed to count failed jobs", "error", err)
+		return ui.FailedJobsView{}
+	}
+	return ui.FailedJobsView{Entries: counts.Entries, Enrichment: counts.Enrichment, Summary: counts.Summary}
 }
 
 // sharedPrefillURL picks the URL to prefill from ?url= or, failing that, the
@@ -139,7 +154,7 @@ func parseDashboardPage(r *http.Request) int {
 // maxDashboardQueryLength caps the search text, in runes, sent to Postgres.
 const maxDashboardQueryLength = 200
 
-// parseDashboardFilter reads ?q=, ?tag=, and ?type=. The tag is matched exactly
+// parseDashboardFilter reads ?q=, ?tag=, ?type=, and ?status=failed. The tag is matched exactly
 // as given, because the links and the tag select send stored values, which may
 // predate tag normalization. An invalid type is ignored rather than rejected, so
 // a stale link still shows the dashboard.
@@ -153,6 +168,7 @@ func parseDashboardFilter(q url.Values) ui.DashboardFilter {
 	if sourceType := parseSourceType(q.Get("type")); sourceType != nil {
 		filter.SourceType = string(*sourceType)
 	}
+	filter.Failed = q.Get("status") == "failed"
 	return filter
 }
 
@@ -168,6 +184,7 @@ func dashboardListOptions(filter ui.DashboardFilter) repository.ListOptions {
 		sourceType := model.SourceType(filter.SourceType)
 		opts.SourceType = &sourceType
 	}
+	opts.Failed = filter.Failed
 	return opts
 }
 
@@ -220,6 +237,9 @@ func dashboardPagePath(page int, filter ui.DashboardFilter) string {
 	}
 	if filter.SourceType != "" {
 		values.Set("type", filter.SourceType)
+	}
+	if filter.Failed {
+		values.Set("status", "failed")
 	}
 	if len(values) == 0 {
 		return "/"

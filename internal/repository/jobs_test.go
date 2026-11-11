@@ -241,6 +241,209 @@ func TestRefreshCacheFailureDoesNotRevokeClaim(t *testing.T) {
 	}
 }
 
+// seedFailed inserts an entry with the given statuses and returns its id.
+func seedFailed(t *testing.T, pool *pgxpool.Pool, enrichment, summary string) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	err := pool.QueryRow(context.Background(), `INSERT INTO entries (source_url, normalized_url, enrichment_status, enrichment_error, summary_status, summary_error)
+ VALUES ('https://example.test/article', $1, $2, CASE WHEN $2 = 'failed' THEN 'boom' END, $3, CASE WHEN $3 = 'failed' THEN 'boom' END) RETURNING id`,
+		uuid.NewString(), enrichment, summary).Scan(&id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestRetryFailedJobsRequeuesOnlyFailedRows(t *testing.T) {
+	pool := testdb.New(t)
+	repo := NewEntryRepository(pool)
+	ctx := context.Background()
+
+	failedEnrichment := seedFailed(t, pool, "failed", "pending")
+	failedSummary := seedFailed(t, pool, "ok", "failed")
+	failedBoth := seedFailed(t, pool, "failed", "failed")
+	healthy := seedFailed(t, pool, "ok", "ok")
+	pending := seedFailed(t, pool, "pending", "pending")
+	if _, err := pool.Exec(ctx, `UPDATE entries SET summary_text = 'kept text' WHERE id = $1`, failedSummary); err != nil {
+		t.Fatal(err)
+	}
+
+	// In-flight jobs hold live leases and must not be requeued or reclaimed.
+	inFlightEnrichment := seedFailed(t, pool, "processing", "pending")
+	inFlightSummary := seedFailed(t, pool, "ok", "processing")
+	if _, err := pool.Exec(ctx, `UPDATE entries SET
+ enrichment_claim_token = CASE WHEN enrichment_status = 'processing' THEN gen_random_uuid() END,
+ enrichment_lease_expires_at = CASE WHEN enrichment_status = 'processing' THEN NOW() + INTERVAL '5 minutes' END,
+ summary_claim_token = CASE WHEN summary_status = 'processing' THEN gen_random_uuid() END,
+ summary_lease_expires_at = CASE WHEN summary_status = 'processing' THEN NOW() + INTERVAL '5 minutes' END
+ WHERE id IN ($1, $2)`, inFlightEnrichment, inFlightSummary); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := func(id uuid.UUID) string {
+		t.Helper()
+		var row string
+		err := pool.QueryRow(ctx, `SELECT concat_ws('|', enrichment_status, enrichment_claim_token, enrichment_lease_expires_at,
+ summary_status, summary_claim_token, summary_lease_expires_at, summary_force_refresh, updated_at) FROM entries WHERE id = $1`, id).Scan(&row)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return row
+	}
+	inFlight := []uuid.UUID{inFlightEnrichment, inFlightSummary}
+	before := []string{snapshot(inFlight[0]), snapshot(inFlight[1])}
+
+	got, err := repo.RetryFailedJobs(ctx, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Enrichment != 2 || got.Summary != 2 {
+		t.Fatalf("requeued %+v, want 2 enrichments and 2 summaries", got)
+	}
+	for i, id := range inFlight {
+		if after := snapshot(id); after != before[i] {
+			t.Fatalf("in-flight entry %s changed:\n before %s\n after  %s", id, before[i], after)
+		}
+	}
+
+	var force bool
+	for _, id := range []uuid.UUID{failedEnrichment, failedBoth} {
+		entry, err := repo.GetByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.EnrichmentStatus != model.StatusPending || entry.EnrichmentError != nil {
+			t.Fatalf("enrichment of %s = %s %v, want pending without error", id, entry.EnrichmentStatus, entry.EnrichmentError)
+		}
+	}
+	for _, id := range []uuid.UUID{failedSummary, failedBoth} {
+		entry, err := repo.GetByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.SummaryStatus != model.StatusPending || entry.SummaryError != nil {
+			t.Fatalf("summary of %s = %s %v, want pending without error", id, entry.SummaryStatus, entry.SummaryError)
+		}
+		if err := pool.QueryRow(ctx, `SELECT summary_force_refresh FROM entries WHERE id = $1`, id).Scan(&force); err != nil || !force {
+			t.Fatalf("summary_force_refresh of %s = %t %v, want true", id, force, err)
+		}
+	}
+	if entry, _ := repo.GetByID(ctx, failedSummary); entry.SummaryText == nil || *entry.SummaryText != "kept text" {
+		t.Fatal("requeue erased the displayed summary")
+	}
+	// Failed rows are claimable again; untouched rows keep their state.
+	if entry, _ := repo.GetByID(ctx, healthy); entry.EnrichmentStatus != model.StatusOK || entry.SummaryStatus != model.StatusOK {
+		t.Fatalf("healthy entry changed: %s %s", entry.EnrichmentStatus, entry.SummaryStatus)
+	}
+	if err := pool.QueryRow(ctx, `SELECT summary_force_refresh FROM entries WHERE id = $1`, pending).Scan(&force); err != nil || force {
+		t.Fatalf("pending entry force flag = %t %v, want false", force, err)
+	}
+
+	// A second call finds nothing failed, so it changes nothing.
+	again, err := repo.RetryFailedJobs(ctx, true)
+	if err != nil || again != (FailedJobs{}) {
+		t.Fatalf("second retry = %+v %v, want nothing requeued", again, err)
+	}
+	counts, err := repo.CountFailedJobs(ctx)
+	if err != nil || counts != (FailedJobs{}) {
+		t.Fatalf("CountFailedJobs after retry = %+v %v, want zero", counts, err)
+	}
+}
+
+func TestRetryFailedJobsSkipsSummariesWhenDisabled(t *testing.T) {
+	pool := testdb.New(t)
+	repo := NewEntryRepository(pool)
+	ctx := context.Background()
+	id := seedFailed(t, pool, "failed", "failed")
+
+	got, err := repo.RetryFailedJobs(ctx, false)
+	if err != nil || got.Enrichment != 1 || got.Summary != 0 {
+		t.Fatalf("requeued %+v %v, want one enrichment and no summaries", got, err)
+	}
+	entry, err := repo.GetByID(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entry.EnrichmentStatus != model.StatusPending || entry.SummaryStatus != model.StatusFailed {
+		t.Fatalf("statuses = %s %s, want pending and failed", entry.EnrichmentStatus, entry.SummaryStatus)
+	}
+}
+
+func TestRetryFailedJobsIsRateLimited(t *testing.T) {
+	pool := testdb.New(t)
+	repo := NewEntryRepository(pool)
+	ctx := context.Background()
+	for range MaxBulkRetry + 5 {
+		seedFailed(t, pool, "failed", "ok")
+	}
+
+	got, err := repo.RetryFailedJobs(ctx, true)
+	if err != nil || got.Enrichment != MaxBulkRetry {
+		t.Fatalf("requeued %+v %v, want %d enrichments", got, err, MaxBulkRetry)
+	}
+	counts, err := repo.CountFailedJobs(ctx)
+	if err != nil || counts.Enrichment != 5 || counts.Entries != 5 {
+		t.Fatalf("remaining %+v %v, want 5 failed", counts, err)
+	}
+	// Requeued rows are ordinary pending jobs for the workers.
+	claim, err := repo.ClaimJob(ctx, EnrichmentJob)
+	if err != nil || claim == nil {
+		t.Fatalf("requeued entry not claimable: %v %v", claim, err)
+	}
+}
+
+func TestRetryFailedJobsLeavesLockedRowsAlone(t *testing.T) {
+	pool := testdb.New(t)
+	repo := NewEntryRepository(pool)
+	ctx := context.Background()
+	locked := seedFailed(t, pool, "failed", "ok")
+	free := seedFailed(t, pool, "failed", "ok")
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM entries WHERE id = $1 FOR UPDATE`, locked); err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.RetryFailedJobs(ctx, true)
+	if err != nil || got.Enrichment != 1 {
+		t.Fatalf("requeued %+v %v, want only the unlocked row", got, err)
+	}
+	if entry, _ := repo.GetByID(ctx, free); entry.EnrichmentStatus != model.StatusPending {
+		t.Fatalf("unlocked entry status = %s, want pending", entry.EnrichmentStatus)
+	}
+}
+
+func TestListOptionsFailedFilter(t *testing.T) {
+	pool := testdb.New(t)
+	repo := NewEntryRepository(pool)
+	ctx := context.Background()
+	want := map[uuid.UUID]bool{
+		seedFailed(t, pool, "failed", "pending"): true,
+		seedFailed(t, pool, "ok", "failed"):      true,
+	}
+	seedFailed(t, pool, "ok", "ok")
+	seedFailed(t, pool, "pending", "pending")
+
+	entries, err := repo.List(ctx, ListOptions{Failed: true})
+	if err != nil || len(entries) != len(want) {
+		t.Fatalf("List(Failed) = %d entries %v, want %d", len(entries), err, len(want))
+	}
+	for _, entry := range entries {
+		if !want[entry.ID] {
+			t.Fatalf("List(Failed) returned %s", entry.ID)
+		}
+	}
+	if count, err := repo.CountFiltered(ctx, ListOptions{Failed: true}); err != nil || count != len(want) {
+		t.Fatalf("CountFiltered(Failed) = %d %v, want %d", count, err, len(want))
+	}
+	counts, err := repo.CountFailedJobs(ctx)
+	if err != nil || counts != (FailedJobs{Enrichment: 1, Summary: 1, Entries: 2}) {
+		t.Fatalf("CountFailedJobs = %+v %v", counts, err)
+	}
+}
+
 func updateInput(entry *model.Entry) *model.UpdateEntryInput {
 	return &model.UpdateEntryInput{
 		Tag: model.Some(entry.Tag), TimeSpentSeconds: model.Some(entry.TimeSpentSeconds), Quantity: model.Some(entry.Quantity),
