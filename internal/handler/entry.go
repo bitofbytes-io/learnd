@@ -330,6 +330,31 @@ func (h *EntryHandler) RefreshSummary(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// RetryFailed requeues failed enrichments and summaries in bulk, up to
+// repository.MaxBulkRetry of each per request. The dashboard reloads afterward
+// so the banner count and rows reflect the new state.
+func (h *EntryHandler) RetryFailed(w http.ResponseWriter, r *http.Request) {
+	requeued, err := h.entryRepo.RetryFailedJobs(r.Context(), h.summaryEnabled)
+	if err != nil {
+		slog.Error("failed to retry failed jobs", "handler", "RetryFailed", "error", err)
+		http.Error(w, "Failed to retry failed entries", http.StatusInternalServerError)
+		return
+	}
+	slog.Info("failed jobs requeued", "enrichment", requeued.Enrichment, "summary", requeued.Summary)
+
+	if requeued.Enrichment+requeued.Summary == 0 {
+		h.htmxToast(w, "No failed entries to retry", nil, "")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	redirectURL := dashboardReturnTo(r)
+	if redirectURL == "" {
+		redirectURL = "/"
+	}
+	w.Header().Set("HX-Redirect", redirectURL)
+	w.WriteHeader(http.StatusOK)
+}
+
 // Status returns the status partial for an entry (for polling)
 func (h *EntryHandler) Status(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseEntryID(w, r)

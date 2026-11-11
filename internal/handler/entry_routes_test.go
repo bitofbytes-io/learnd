@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/drywaters/learnd/internal/model"
+	"github.com/drywaters/learnd/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -40,6 +41,57 @@ func TestEntryRoutesRejectBadIDs(t *testing.T) {
 				t.Errorf("%s /entries/%s%s status = %d, want %d", route.method, id, route.suffix, rec.Code, want)
 			}
 		}
+	}
+}
+
+func TestRetryFailed(t *testing.T) {
+	tests := []struct {
+		name         string
+		summaries    bool
+		currentURL   string
+		requeued     repository.FailedJobs
+		repoErr      error
+		wantStatus   int
+		wantRedirect string
+		wantToast    string
+	}{
+		{name: "requeued returns to the dashboard", summaries: true, currentURL: "https://learnd.test/?tag=go&status=failed",
+			requeued: repository.FailedJobs{Enrichment: 2, Summary: 1}, wantStatus: http.StatusOK, wantRedirect: "/?tag=go&status=failed"},
+		{name: "not on the dashboard", requeued: repository.FailedJobs{Enrichment: 1}, currentURL: "https://learnd.test/reports",
+			wantStatus: http.StatusOK, wantRedirect: "/"},
+		{name: "nothing failed", wantStatus: http.StatusOK, wantToast: "No failed entries to retry"},
+		{name: "repository error", repoErr: errors.New("db down"), wantStatus: http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotSummaries bool
+			mock := &mockEntryRepo{retryFailedJobsFn: func(_ context.Context, includeSummaries bool) (repository.FailedJobs, error) {
+				gotSummaries = includeSummaries
+				return tt.requeued, tt.repoErr
+			}}
+			router := chi.NewRouter()
+			router.Post("/api/entries/retry-failed", NewEntryHandler(mock, tt.summaries).RetryFailed)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/entries/retry-failed", nil)
+			if tt.currentURL != "" {
+				req.Header.Set("HX-Current-URL", tt.currentURL)
+			}
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+			if gotSummaries != tt.summaries {
+				t.Fatalf("includeSummaries = %t, want %t", gotSummaries, tt.summaries)
+			}
+			if got := rec.Header().Get("HX-Redirect"); got != tt.wantRedirect {
+				t.Fatalf("HX-Redirect = %q, want %q", got, tt.wantRedirect)
+			}
+			if !strings.Contains(rec.Header().Get("HX-Trigger"), tt.wantToast) {
+				t.Fatalf("HX-Trigger = %q, want %q", rec.Header().Get("HX-Trigger"), tt.wantToast)
+			}
+		})
 	}
 }
 

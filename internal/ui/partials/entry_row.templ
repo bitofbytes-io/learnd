@@ -245,6 +245,10 @@ templ summaryStatus(entry ui.EntryView) {
 				<span class="status-pending animate-spin opacity-50" title="Summarizing...">
 					@components.SpinnerIconSmall()
 				</span>
+			case model.StatusFailed:
+				<span class="status-failed" title={ fmt.Sprintf("Summary failed: %s", safeString(entry.SummaryError)) }>
+					@components.XIcon()
+				</span>
 		}
 	}
 }

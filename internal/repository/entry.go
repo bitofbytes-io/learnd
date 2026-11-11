@@ -70,6 +70,8 @@ type ListOptions struct {
 	Query      *string
 	Tag        *string
 	SourceType *model.SourceType
+	// Failed keeps only entries whose enrichment or summary failed.
+	Failed bool
 	// ID narrows the filters to one entry, to check whether it still matches.
 	ID *uuid.UUID
 }
@@ -91,6 +93,9 @@ func (opts ListOptions) filter() (string, []any) {
 	}
 	if opts.SourceType != nil {
 		add(`source_type = $%d`, string(*opts.SourceType))
+	}
+	if opts.Failed {
+		conditions = append(conditions, `(enrichment_status = 'failed' OR summary_status = 'failed')`)
 	}
 	if opts.ID != nil {
 		add(`id = $%d`, *opts.ID)

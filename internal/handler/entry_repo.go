@@ -25,4 +25,6 @@ type EntryRepo interface {
 	ListByNormalizedURL(ctx context.Context, normalizedURL string) ([]model.Entry, error)
 	ResetEnrichment(ctx context.Context, id uuid.UUID) error
 	ResetSummary(ctx context.Context, id uuid.UUID) error
+	CountFailedJobs(ctx context.Context) (repository.FailedJobs, error)
+	RetryFailedJobs(ctx context.Context, includeSummaries bool) (repository.FailedJobs, error)
 }

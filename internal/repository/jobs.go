@@ -149,6 +149,71 @@ func (r *EntryRepository) CompleteSummary(ctx context.Context, claim *JobClaim, 
 	return tx.Commit(ctx)
 }
 
+// MaxBulkRetry caps how many entries RetryFailedJobs requeues per kind in one
+// call, so a large backlog reaches the providers over several clicks instead of
+// all at once.
+const MaxBulkRetry = 50
+
+// FailedJobs counts failed jobs. Entries counts entries with either job failed,
+// so it is not the sum of the other two.
+type FailedJobs struct {
+	Enrichment int
+	Summary    int
+	Entries    int
+}
+
+// CountFailedJobs reports how many entries are in a failed state.
+func (r *EntryRepository) CountFailedJobs(ctx context.Context) (FailedJobs, error) {
+	var counts FailedJobs
+	err := r.pool.QueryRow(ctx, `SELECT
+ COUNT(*) FILTER (WHERE enrichment_status = 'failed'),
+ COUNT(*) FILTER (WHERE summary_status = 'failed'),
+ COUNT(*) FILTER (WHERE enrichment_status = 'failed' OR summary_status = 'failed')
+ FROM entries`).Scan(&counts.Enrichment, &counts.Summary, &counts.Entries)
+	if err != nil {
+		return FailedJobs{}, fmt.Errorf("count failed jobs: %w", err)
+	}
+	return counts, nil
+}
+
+// RetryFailedJobs requeues up to MaxBulkRetry failed enrichments, oldest first,
+// and, when includeSummaries is set, as many failed summaries. It matches
+// failed rows only, so processing rows and their leases are never touched, and
+// a second call finds nothing already requeued. Rows locked by a concurrent
+// writer are skipped. Like ResetSummary, a requeued summary sets
+// summary_force_refresh so the worker bypasses the cache; the displayed summary
+// text is kept until a fresh one replaces it. It returns how many of each were
+// requeued.
+func (r *EntryRepository) RetryFailedJobs(ctx context.Context, includeSummaries bool) (FailedJobs, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return FailedJobs{}, err
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	var requeued FailedJobs
+	// $1 is the per-kind limit; each statement locks and updates the same rows.
+	const requeue = `UPDATE entries SET %[1]s_status = 'pending', %[1]s_error = NULL,
+ %[1]s_claim_token = NULL, %[1]s_lease_expires_at = NULL%[2]s
+ WHERE id IN (SELECT id FROM entries WHERE %[1]s_status = 'failed'
+ ORDER BY created_at, id LIMIT $1 FOR UPDATE SKIP LOCKED)`
+	command, err := tx.Exec(ctx, fmt.Sprintf(requeue, EnrichmentJob, ", enriched_at = NULL, updated_at = NOW()"), MaxBulkRetry)
+	if err != nil {
+		return FailedJobs{}, fmt.Errorf("requeue failed enrichments: %w", err)
+	}
+	requeued.Enrichment = int(command.RowsAffected())
+	if includeSummaries {
+		command, err = tx.Exec(ctx, fmt.Sprintf(requeue, SummaryJob, ", summary_force_refresh = TRUE"), MaxBulkRetry)
+		if err != nil {
+			return FailedJobs{}, fmt.Errorf("requeue failed summaries: %w", err)
+		}
+		requeued.Summary = int(command.RowsAffected())
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return FailedJobs{}, err
+	}
+	return requeued, nil
+}
+
 func SummaryURLHash(canonicalURL string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(canonicalURL)))
 }
