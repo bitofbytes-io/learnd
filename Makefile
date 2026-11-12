@@ -19,7 +19,7 @@ ensure-image-tag: configure-image
 GOLANGCI_LINT_VERSION := v2.15.0
 
 # renovate: datasource=go depName=golang.org/x/vuln
-GOVULNCHECK_VERSION := v1.7.0
+GOVULNCHECK_VERSION := v1.9.0
 
 # Templ code generation
 templ: ## Generate Go code from templ files
