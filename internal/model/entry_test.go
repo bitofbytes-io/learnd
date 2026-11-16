@@ -177,6 +177,16 @@ func TestEntryJSONShape(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		var keys map[string]any
+		if err := json.Unmarshal(data, &keys); err != nil {
+			t.Fatal(err)
+		}
+		for key, want := range map[string]any{"tag": "go", "title": "A title", "time_spent_seconds": float64(90)} {
+			if got := keys[key]; got != want {
+				t.Errorf("Entry JSON %q = %v, want %v", key, got, want)
+			}
+		}
+
 		var got Entry
 		if err := json.Unmarshal(data, &got); err != nil {
 			t.Fatal(err)
