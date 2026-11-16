@@ -44,6 +44,7 @@ func TestLoginPage(t *testing.T) {
 		{
 			name:        "escapes the redirect target",
 			redirectURL: `/"><script>alert(1)</script>`,
+			want:        []string{`<input type="hidden" name="redirect" value="/&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;">`},
 			absent:      []string{"<script>alert(1)</script>"},
 		},
 	}
