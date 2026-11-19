@@ -123,4 +123,4 @@ jobs:
       - name: Run CI on the updated commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run ci.yml --ref "${GITHUB_REF_NAME}"
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "${GITHUB_REF_NAME}"
