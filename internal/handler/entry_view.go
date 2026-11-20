@@ -2,10 +2,16 @@ package handler
 
 import (
 	"context"
+	"log/slog"
+	"net/http"
+	"net/url"
 
 	"github.com/drywaters/learnd/internal/model"
 	"github.com/drywaters/learnd/internal/ui"
+	"github.com/drywaters/learnd/internal/ui/pages"
+	"github.com/drywaters/learnd/internal/ui/partials"
 	"github.com/drywaters/learnd/internal/urlutil"
+	"github.com/google/uuid"
 )
 
 func buildEntryView(entry *model.Entry, duplicateCount int, summaryEnabled bool) ui.EntryView {
@@ -69,4 +75,50 @@ func buildEntryViews(ctx context.Context, repo EntryRepo, entries []model.Entry,
 	}
 
 	return views
+}
+
+// renderRow writes the entry's row, keeping the dashboard page in its edit link.
+func (h *EntryHandler) renderRow(w http.ResponseWriter, r *http.Request, entry *model.Entry) {
+	entryView := buildEntryView(entry, getDuplicateCount(r.Context(), h.entryRepo, entry), h.summaryEnabled)
+	stampDashboardEntryViewFromRequest(r, &entryView)
+	if err := partials.EntryRow(entryView).Render(r.Context(), w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+		return
+	}
+}
+
+// renderFailedBanner re-renders the dashboard's failed-jobs banner out of band,
+// so its count follows the rows as they fail or are retried.
+func (h *EntryHandler) renderFailedBanner(w http.ResponseWriter, r *http.Request) {
+	var filter ui.DashboardFilter
+	if parsed, err := url.Parse(dashboardReturnTo(r)); err == nil {
+		filter = parseDashboardFilter(parsed.Query())
+	}
+	failed := loadFailedJobs(r.Context(), h.entryRepo)
+	if err := pages.FailedJobsBanner(filter, failed, true).Render(r.Context(), w); err != nil {
+		slog.Warn("response render stopped", "error", err)
+	}
+}
+
+// renderDuplicateRows re-renders, out of band, every entry sharing
+// normalizedURL except skipID, so their duplicate counts stay current.
+func (h *EntryHandler) renderDuplicateRows(w http.ResponseWriter, r *http.Request, normalizedURL string, skipID uuid.UUID) {
+	if normalizedURL == "" {
+		return
+	}
+	duplicates, err := h.entryRepo.ListByNormalizedURL(r.Context(), normalizedURL)
+	if err != nil {
+		return
+	}
+	for _, duplicate := range duplicates {
+		if duplicate.ID == skipID {
+			continue
+		}
+		duplicateView := buildEntryView(&duplicate, len(duplicates), h.summaryEnabled)
+		duplicateView.SwapOOB = true
+		if err := partials.EntryRow(duplicateView).Render(r.Context(), w); err != nil {
+			slog.Warn("response render stopped", "error", err)
+			return
+		}
+	}
 }
